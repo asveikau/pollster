@@ -187,6 +187,18 @@ exit:
       *ev = e.Detach();
 }
 
+void
+wait::unix_backend::add_timer(
+   uint64_t millis,
+   bool repeating,
+   event **ev,
+   error *err
+)
+{
+   ERROR_SET(err, unknown, "Not implemented");
+exit:;
+}
+
 int64_t
 wait::unix_backend::get_timeout(void)
 {
