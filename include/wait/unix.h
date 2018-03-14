@@ -16,6 +16,8 @@ struct unix_backend : public waiter
    virtual void
    remove_fd(int fd, error *err) = 0;
 
+   int64_t get_timeout(void);
+
    void
    add_socket(
       int fd,

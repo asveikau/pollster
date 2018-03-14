@@ -186,3 +186,9 @@ exit:
    if (!ERROR_FAILED(err))
       *ev = e.Detach();
 }
+
+int64_t
+wait::unix_backend::get_timeout(void)
+{
+   return -1;
+}
