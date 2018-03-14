@@ -23,12 +23,18 @@ struct event : virtual public common::RefCountable
    void
    signal_from_backend(error *err)
    {
+      signal_from_backend(true, err);
+   }
+
+   void
+   signal_from_backend(bool check_error, error *err)
+   {
       if (on_signal_impl)
          on_signal_impl(err);
       else if (on_signal)
          on_signal(err);
 
-      if (ERROR_FAILED(err))
+      if (check_error && ERROR_FAILED(err))
       {
          if (on_error)
             on_error(err);

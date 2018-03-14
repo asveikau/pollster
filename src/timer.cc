@@ -75,7 +75,39 @@ pollster::timer::begin_poll(error *err)
 void
 pollster::timer::end_poll(error *err)
 {
-   // TODO
+   uint64_t ellapsed = 0; // TODO
+
+   auto prev = &head;
+
+   while ((*prev))
+   {
+      auto p = *prev;
+
+      if (ellapsed < p->pendingMillis)
+      {
+         p->pendingMillis -= ellapsed;
+         break;
+      }
+
+      ellapsed -= p->pendingMillis;
+      *prev = p->next;
+      p->next = nullptr;
+
+      p->signal_from_backend(false, err);
+
+      if (ERROR_FAILED(err))
+      {
+         if (p->on_error)
+            p->on_error(err);
+         error_clear(err);
+         p->repeat = false;
+      }
+
+      if (p->repeat)
+         insert(p);
+      else
+         p->Release();
+   }
 }
 
 pollster::timer_node::timer_node()
