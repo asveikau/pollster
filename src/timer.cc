@@ -91,6 +91,9 @@ pollster::timer::end_poll(error *err)
 
       ellapsed -= p->pendingMillis;
       *prev = p->next;
+      if (*prev)
+         (*prev)->prev = prev;
+      p->prev = nullptr;
       p->next = nullptr;
 
       p->signal_from_backend(false, err);
@@ -125,7 +128,10 @@ pollster::timer_node::remove(error *err)
    if (prev)
    {
       *prev = next;
+      if (*prev)
+         (*prev)->prev = prev;
       prev = nullptr;
+      next = nullptr;
       Release();
    }
 }
