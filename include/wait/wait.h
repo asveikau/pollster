@@ -18,13 +18,24 @@ struct event : virtual public common::RefCountable
    std::function<void(error*)> on_signal;
    std::function<void(error*)> on_signal_impl;
 
+   std::function<void(error*)> on_error;
+
    void
-   invoke_from_backend(error *err)
+   signal_from_backend(error *err)
    {
       if (on_signal_impl)
          on_signal_impl(err);
       else if (on_signal)
          on_signal(err);
+
+      if (ERROR_FAILED(err))
+      {
+         if (on_error)
+            on_error(err);
+
+         error_clear(err);
+         remove(err);
+      }
    }
 
    event() : writeable(false) {}

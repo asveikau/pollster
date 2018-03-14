@@ -163,8 +163,18 @@ struct kqueue_backend : public wait::unix_backend
            cursor < last;
            cursor++)
       {
-         // TODO: process cursor
+         process(cursor, err);
+         ERROR_CHECK(err);
       }
+   exit:;
+   }
+
+   void
+   process(struct kevent *ev, error *err)
+   {
+      auto obj = (wait::event*)ev->udata;
+
+      obj->signal_from_backend(err);
    }
 };
 
