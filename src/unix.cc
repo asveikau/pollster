@@ -203,12 +203,5 @@ pollster::unix_backend::add_timer(
    error *err
 )
 {
-   ERROR_SET(err, unknown, "Not implemented");
-exit:;
-}
-
-int64_t
-pollster::unix_backend::get_timeout(void)
-{
-   return -1;
+   timer.add(millis, repeating, ev, err);
 }

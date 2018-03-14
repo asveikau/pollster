@@ -139,13 +139,16 @@ struct kqueue_backend : public pollster::unix_backend
       int nevents = 0;
       struct timespec timeoutStorage;
       struct timespec *timeout = nullptr;
-      auto timeoutInt = get_timeout();
+      auto timeoutInt = timer.next_timer();
 
       if (timeoutInt >= 0)
       {
          timeout = &timeoutStorage;
          timeout->tv_sec = timeoutInt / 1000;
          timeout->tv_nsec = (timeoutInt % 1000) * 1000000;
+
+         timer.begin_poll(err);
+         ERROR_CHECK(err);
       }
 
       nevents = kevent(
@@ -157,7 +160,13 @@ struct kqueue_backend : public pollster::unix_backend
          timeout
       );
 
-      changelist.resize(0);
+      changelist.resize(0);      
+
+      if (timeoutInt >= 0)
+      {
+         timer.end_poll(err);
+         ERROR_CHECK(err);
+      }
 
       for (cursor = events, last = events + nevents;
            cursor < last;

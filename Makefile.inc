@@ -7,7 +7,12 @@ LIBPOLLSTER_CXXFLAGS += -I$(LIBCOMMON_ROOT)include
 LIBPOLLSTER_CXXFLAGS += -I$(LIBPOLLSTER_ROOT)include
 
 LIBPOLLSTER_SRC += \
+   $(LIBPOLLSTER_ROOT)src/timer.cc
+
+ifneq ($(PLATFORM), windows)
+LIBPOLLSTER_SRC += \
    $(LIBPOLLSTER_ROOT)src/unix.cc
+endif
 
 ifneq (, $(filter $(PLATFORM),freebsd openbsd darwin))
 LIBPOLLSTER_SRC += \

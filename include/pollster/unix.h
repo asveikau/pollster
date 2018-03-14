@@ -1,12 +1,15 @@
-#ifndef wait_unix_h_
-#define wait_unix_h_
+#ifndef pollster_unix_h_
+#define pollster_unix_h_
 
 #include "pollster.h"
+#include "timer.h"
 
 namespace pollster {
 
 struct unix_backend : public waiter
-{   
+{
+   timer timer;
+
    virtual void
    add_fd(int fd, bool write_flag, event *object, error *err) = 0;
 
@@ -15,8 +18,6 @@ struct unix_backend : public waiter
 
    virtual void
    remove_fd(int fd, event *object, error *err) = 0;
-
-   int64_t get_timeout(void);
 
    void
    add_socket(
