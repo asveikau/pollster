@@ -3,7 +3,6 @@
 
 #include <wait/unix.h>
 
-
 using namespace common;
 
 namespace {
@@ -18,9 +17,13 @@ struct fd_wrapper_base : virtual public wait::event
    void
    remove(error *err)
    {
+      bool removed = false;
+
       if (p && fd >= 0)
       {
-         p->remove_fd(fd, err);
+         AddRef();
+         p->remove_fd(fd, this, err);
+         removed = true;
       }
 
       p = nullptr;
@@ -30,18 +33,16 @@ struct fd_wrapper_base : virtual public wait::event
          close(fd);
          fd = -1;
       }
-   }
 
-   ~fd_wrapper_base()
-   {
-      error err;
-
-      remove(&err);
+      if (removed)
+         Release();
    }
 };
 
 struct socket_wrapper : public fd_wrapper_base, public wait::socket_event
 {
+   socket_wrapper() { writeable = true; }
+
    void
    remove(error *err)
    {
@@ -53,7 +54,7 @@ struct socket_wrapper : public fd_wrapper_base, public wait::socket_event
    {
       if (p && fd >= 0)
       {
-         p->set_write(fd, write, err);
+         p->set_write(fd, write, this, err);
       }
    }
 };

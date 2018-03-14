@@ -11,10 +11,10 @@ struct unix_backend : public waiter
    add_fd(int fd, bool write_flag, event *object, error *err) = 0;
 
    virtual void
-   set_write(int fd, bool write_flag, error *err) = 0;
+   set_write(int fd, bool write_flag, event *object, error *err) = 0;
 
    virtual void
-   remove_fd(int fd, error *err) = 0;
+   remove_fd(int fd, event *object, error *err) = 0;
 
    int64_t get_timeout(void);
 

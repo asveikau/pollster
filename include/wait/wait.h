@@ -13,6 +13,8 @@ struct event : virtual public common::RefCountable
 {
    virtual void remove(error *err) = 0;
 
+   bool writeable;
+
    std::function<void(error*)> on_signal;
    std::function<void(error*)> on_signal_impl;
 
@@ -24,6 +26,8 @@ struct event : virtual public common::RefCountable
       else if (on_signal)
          on_signal(err);
    }
+
+   event() : writeable(false) {}
 };
 
 struct auto_reset_signal : virtual public event
@@ -64,6 +68,12 @@ struct waiter : public common::RefCountable
    virtual void
    exec(error *err) = 0;
 };
+
+void
+create(
+   waiter **waiter,
+   error *err
+);
 
 } // end namespace
 

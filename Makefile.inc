@@ -9,6 +9,12 @@ LIBWAIT_CXXFLAGS += -I$(LIBWAIT_ROOT)include
 LIBWAIT_SRC += \
    $(LIBWAIT_ROOT)src/unix.cc
 
+ifneq (, $(filter $(PLATFORM),freebsd openbsd darwin))
+LIBWAIT_SRC += \
+   $(LIBWAIT_ROOT)src/kqueue.cc
+LIBWAIT_CXXFLAGS += -DUSE_KQUEUE
+endif
+
 LIBWAIT_OBJS := $(shell $(SRC2OBJ) $(LIBWAIT_SRC))
 
 LIBWAIT=$(LIBWAIT_ROOT)$(LIBPREFIX)wait$(LIBSUFFIX)
