@@ -62,8 +62,9 @@ struct socket_wrapper : public fd_wrapper_base, public wait::socket_event
 struct auto_reset_wrapper : public fd_wrapper_base, public wait::auto_reset_signal
 {
    int writefd;
+   bool repeat;
 
-   auto_reset_wrapper() : writefd(-1) {}
+   auto_reset_wrapper() : writefd(-1), repeat(false) {}
    ~auto_reset_wrapper() { if (writefd >= 0) close(writefd);}
 
    void
@@ -107,6 +108,11 @@ struct auto_reset_wrapper : public fd_wrapper_base, public wait::auto_reset_sign
 
          if (on_signal)
             on_signal(err);
+
+         ERROR_CHECK(err);
+
+         if (!repeat)
+            remove(err); 
       exit:;
       };
    exit:;
@@ -182,6 +188,7 @@ wait::unix_backend::add_auto_reset_signal(
    ERROR_CHECK(err);
 
    e->p = this;
+   e->repeat = repeating;
 
 exit:
    if (!ERROR_FAILED(err))
