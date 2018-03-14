@@ -1,12 +1,12 @@
-#ifndef wait_wait_h
-#define wait_wait_h
+#ifndef pollster_pollster_h
+#define pollster_pollster_h
 
 #include <common/c++/refcount.h>
 #include <common/error.h>
 
 #include <functional>
 
-namespace wait
+namespace pollster
 {
 
 struct event : virtual public common::RefCountable

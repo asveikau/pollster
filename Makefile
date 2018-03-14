@@ -4,17 +4,17 @@ CFLAGS += -O2 -Wall
 include Makefile.inc
 CXXFLAGS += $(CFLAGS)
 
-all-phony: $(LIBWAIT) test$(EXESUFFIX)
+all-phony: $(LIBPOLLSTER) test$(EXESUFFIX)
 
-test$(EXESUFFIX): src/test.cc $(LIBWAIT)
-	${CXX} ${CXXFLAGS} ${LIBWAIT_CXXFLAGS} -o $@ $< -L. -lwait -L$(LIBCOMMON_ROOT) -lcommon $(CXXLIBS)
+test$(EXESUFFIX): src/test.cc $(LIBPOLLSTER)
+	${CXX} ${CXXFLAGS} ${LIBPOLLSTER_CXXFLAGS} -o $@ $< -L. -lpollster -L$(LIBCOMMON_ROOT) -lcommon $(CXXLIBS)
 
 clean:
 	rm -f $(LIBCOMMON) $(LIBCOMMON_OBJS)
-	rm -f $(LIBWAIT) $(LIBWAIT_OBJS)
+	rm -f $(LIBPOLLSTER) $(LIBPOLLSTER_OBJS)
 	rm -f test$(EXESUFFIX)
 
 export
 depend:
-	env PROJECT=LIBWAIT $(DEPEND) src/*.cc > depend.mk
+	env PROJECT=LIBPOLLSTER $(DEPEND) src/*.cc > depend.mk
 

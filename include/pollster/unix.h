@@ -1,9 +1,9 @@
 #ifndef wait_unix_h_
 #define wait_unix_h_
 
-#include "wait.h"
+#include "pollster.h"
 
-namespace wait {
+namespace pollster {
 
 struct unix_backend : public waiter
 {   

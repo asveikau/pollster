@@ -1,4 +1,4 @@
-#include <wait/unix.h>
+#include <pollster/unix.h>
 #include <common/misc.h>
 
 #include <sys/types.h>
@@ -11,7 +11,7 @@
 
 namespace {
 
-struct kqueue_backend : public wait::unix_backend
+struct kqueue_backend : public pollster::unix_backend
 {
    int kq;
    std::vector<struct kevent> changelist;
@@ -30,7 +30,7 @@ struct kqueue_backend : public wait::unix_backend
    }
 
    struct kevent *
-   allocate(wait::event *obj, error *err)
+   allocate(pollster::event *obj, error *err)
    {
       // Something already pending for this object?
       // Return it back.
@@ -64,7 +64,7 @@ struct kqueue_backend : public wait::unix_backend
       int fd,
       int cmd,
       bool write,
-      wait::event *object
+      pollster::event *object
    )
    {
       EV_SET(&ev[0], fd, EVFILT_READ, cmd, 0, 0, object);
@@ -78,7 +78,7 @@ struct kqueue_backend : public wait::unix_backend
    }
 
    void
-   add_fd(int fd, bool write, wait::event *object, bool ref, error *err)
+   add_fd(int fd, bool write, pollster::event *object, bool ref, error *err)
    {
       auto ev = allocate(object, err);
       ERROR_CHECK(err);
@@ -91,7 +91,7 @@ struct kqueue_backend : public wait::unix_backend
    }
 
    void
-   remove_fd(int fd, wait::event *object, error *err)
+   remove_fd(int fd, pollster::event *object, error *err)
    {
       auto ev = allocate(object, err);
       ERROR_CHECK(err);
@@ -105,7 +105,7 @@ struct kqueue_backend : public wait::unix_backend
    }
 
    void
-   remove_pending(wait::event *object)
+   remove_pending(pollster::event *object)
    {
       struct kevent *ev, *dst;
 
@@ -121,13 +121,13 @@ struct kqueue_backend : public wait::unix_backend
    }
 
    void
-   add_fd(int fd, bool write_flag, wait::event *object, error *err)
+   add_fd(int fd, bool write_flag, pollster::event *object, error *err)
    {
       add_fd(fd, write_flag, object, true, err);
    }
 
    void
-   set_write(int fd, bool write_flag, wait::event *object, error *err)
+   set_write(int fd, bool write_flag, pollster::event *object, error *err)
    {
       add_fd(fd, write_flag, object, false, err);
    }
@@ -172,7 +172,7 @@ struct kqueue_backend : public wait::unix_backend
    void
    process(struct kevent *ev, error *err)
    {
-      auto obj = (wait::event*)ev->udata;
+      auto obj = (pollster::event*)ev->udata;
 
       obj->signal_from_backend(err);
    }
@@ -181,7 +181,7 @@ struct kqueue_backend : public wait::unix_backend
 } // end namespace
 
 void
-wait::create(
+pollster::create(
    waiter **waiter,
    error *err
 )

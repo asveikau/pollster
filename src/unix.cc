@@ -1,15 +1,15 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#include <wait/unix.h>
+#include <pollster/unix.h>
 
 using namespace common;
 
 namespace {
 
-struct fd_wrapper_base : virtual public wait::event
+struct fd_wrapper_base : virtual public pollster::event
 {
-   wait::unix_backend *p;
+   pollster::unix_backend *p;
    int fd;
 
    fd_wrapper_base() : p(nullptr), fd(-1) {}
@@ -39,7 +39,7 @@ struct fd_wrapper_base : virtual public wait::event
    }
 };
 
-struct socket_wrapper : public fd_wrapper_base, public wait::socket_event
+struct socket_wrapper : public fd_wrapper_base, public pollster::socket_event
 {
    socket_wrapper() { writeable = true; }
 
@@ -59,7 +59,7 @@ struct socket_wrapper : public fd_wrapper_base, public wait::socket_event
    }
 };
 
-struct auto_reset_wrapper : public fd_wrapper_base, public wait::auto_reset_signal
+struct auto_reset_wrapper : public fd_wrapper_base, public pollster::auto_reset_signal
 {
    int writefd;
    bool repeat;
@@ -134,7 +134,7 @@ struct auto_reset_wrapper : public fd_wrapper_base, public wait::auto_reset_sign
 } // end namespace
 
 void
-wait::unix_backend::add_socket(
+pollster::unix_backend::add_socket(
    int fd,
    bool write,
    socket_event **ev,
@@ -164,7 +164,7 @@ exit:
 }
 
 void
-wait::unix_backend::add_auto_reset_signal(
+pollster::unix_backend::add_auto_reset_signal(
    bool repeating,
    auto_reset_signal **ev,
    error *err
@@ -196,7 +196,7 @@ exit:
 }
 
 void
-wait::unix_backend::add_timer(
+pollster::unix_backend::add_timer(
    uint64_t millis,
    bool repeating,
    event **ev,
@@ -208,7 +208,7 @@ exit:;
 }
 
 int64_t
-wait::unix_backend::get_timeout(void)
+pollster::unix_backend::get_timeout(void)
 {
    return -1;
 }

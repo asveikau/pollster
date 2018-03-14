@@ -1,14 +1,20 @@
-#include <wait/wait.h>
+#include <pollster/pollster.h>
 #include <common/logger.h>
 
 #include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
 
 using namespace common;
+using namespace pollster;
 
 int
 main()
 {
-   Pointer<wait::waiter> waiter;
+   Pointer<waiter> waiter;
+   Pointer<auto_reset_signal> stop;
+   Pointer<socket_event> stdinEv;
+   bool gotStop = false;
    error err;
 
    log_register_callback(
@@ -16,10 +22,55 @@ main()
       nullptr
    );
 
-   wait::create(waiter.GetAddressOf(), &err);
+   create(waiter.GetAddressOf(), &err);
    ERROR_CHECK(&err);
 
-   for (;;)
+   waiter->add_auto_reset_signal(
+      false,
+      stop.GetAddressOf(),
+      &err
+   );
+   ERROR_CHECK(&err);
+
+   stop->on_signal = [&gotStop] (error *err) -> void
+   {
+      gotStop = true;
+   };
+
+   waiter->add_socket(
+      0,
+      false,
+      stdinEv.GetAddressOf(),
+      &err
+   );
+   ERROR_CHECK(&err);
+
+   stdinEv->on_signal = [stop] (error *err) -> void
+   {
+      char buf[4096];
+      int r;
+
+      while ((r = read(0, buf, sizeof(buf))) > 0)
+      {
+      }
+
+      if (!r)
+         stop->signal(err);
+      else
+      {
+         switch(errno)
+         {
+         case EAGAIN:
+         case EINTR:
+            break;
+         default:
+            ERROR_SET(err, errno, errno);
+         }
+      }
+   exit:;
+   };
+
+   while (!gotStop)
    {
       waiter->exec(&err);
       ERROR_CHECK(&err);
