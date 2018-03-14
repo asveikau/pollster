@@ -1,4 +1,5 @@
 #include <pollster/timer.h>
+#include <common/time.h>
 
 pollster::timer::timer()
    : head(nullptr), last_time(0)
@@ -69,13 +70,16 @@ exit:
 void
 pollster::timer::begin_poll(error *err)
 {
-   // TODO
+   if (!last_time)
+      last_time = get_monotonic_time_millis();
 }
 
 void
 pollster::timer::end_poll(error *err)
 {
-   uint64_t ellapsed = 0; // TODO
+   auto start_time = last_time;
+   last_time = get_monotonic_time_millis();
+   uint64_t ellapsed = last_time - start_time;
 
    auto prev = &head;
 
