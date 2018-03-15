@@ -1,4 +1,5 @@
 #include <pollster/unix.h>
+#include <pollster/backends.h>
 #include <common/misc.h>
 
 #include <sys/types.h>
@@ -190,10 +191,7 @@ struct kqueue_backend : public pollster::unix_backend
 } // end namespace
 
 void
-pollster::create(
-   waiter **waiter,
-   error *err
-)
+pollster::create_kqueue(waiter **waiter, error *err)
 {
    common::Pointer<kqueue_backend> r;
 
