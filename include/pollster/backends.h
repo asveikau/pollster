@@ -8,6 +8,9 @@ namespace pollster {
 void
 create_kqueue(waiter **waiter, error *err);
 
+void
+create_poll(waiter **waiter, error *err);
+
 } // end namespace
 
 #endif

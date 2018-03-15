@@ -13,6 +13,9 @@ pollster::create(waiter **w, error *err)
 #if defined(USE_KQUEUE)
       {create_kqueue},
 #endif
+#if defined(USE_POLL)
+      {create_poll},
+#endif
       {nullptr}
    };
    *w = nullptr;
