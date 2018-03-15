@@ -89,6 +89,7 @@ struct auto_reset_wrapper : public fd_wrapper_base, public pollster::auto_reset_
 
       on_signal_impl = [this] (error *err) -> void
       {
+#define exit innerExit
          int r = 0;
          char buf[64];
 
@@ -114,6 +115,7 @@ struct auto_reset_wrapper : public fd_wrapper_base, public pollster::auto_reset_
          if (!repeat)
             remove(err); 
       exit:;
+#undef exit
       };
    exit:;
    }
