@@ -1,15 +1,9 @@
+#include <pollster/socket.h>
 #include <pollster/pollster.h>
 #include <common/logger.h>
 
 #include <vector>
-
 #include <stdio.h>
-#include <unistd.h>
-#include <fcntl.h>
-
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
 
 using namespace common;
 using namespace pollster;
@@ -57,6 +51,7 @@ main(int argc, char **argv)
    Pointer<socket_event> socket;
    socket_event *socketWeak = nullptr;
    std::vector<char> writeBuffer;
+   std::function<void(const void*, size_t, error *)> write_fn;
    bool gotStop = false;
    int fd = -1;
    error err;
@@ -109,6 +104,29 @@ main(int argc, char **argv)
 #undef exit
    };
 
+   write_fn = [socket, &writeBuffer] (const void *buf, size_t len, error *err) -> void
+   {
+#define exit innerExit
+      bool was_empty = !writeBuffer.size();
+
+      try
+      {
+         writeBuffer.insert(writeBuffer.end(), (const char*)buf, (const char*)buf+len);
+      }
+      catch (std::bad_alloc)
+      {
+         ERROR_SET(err, nomem);
+      }
+
+      if (was_empty)
+      {
+         socket->set_needs_write(true, err);
+         ERROR_CHECK(err);
+      }
+   exit:;
+#undef exit
+   };
+
    waiter->add_auto_reset_signal(
       false,
       stop.GetAddressOf(),
@@ -129,7 +147,7 @@ main(int argc, char **argv)
    );
    ERROR_CHECK(&err);
 
-   stdinEv->on_signal = [stop, socket, &writeBuffer] (error *err) -> void
+   stdinEv->on_signal = [stop, write_fn] (error *err) -> void
    {
 #define exit innerExit
       char buf[4096];
@@ -137,22 +155,8 @@ main(int argc, char **argv)
 
       while ((r = read(0, buf, sizeof(buf))) > 0)
       {
-         bool was_empty = !writeBuffer.size();
-
-         try
-         {
-            writeBuffer.insert(writeBuffer.end(), buf, buf+r);
-         }
-         catch (std::bad_alloc)
-         {
-            ERROR_SET(err, nomem);
-         }
-
-         if (was_empty)
-         {
-            socket->set_needs_write(true, err);
-            ERROR_CHECK(err);
-         }
+         write_fn(buf, r, err);
+         ERROR_CHECK(err);
 
          r = -1;
          errno = EAGAIN;
