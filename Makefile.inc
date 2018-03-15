@@ -10,7 +10,10 @@ LIBPOLLSTER_SRC += \
    $(LIBPOLLSTER_ROOT)src/backends.cc \
    $(LIBPOLLSTER_ROOT)src/timer.cc
 
-ifneq ($(PLATFORM), windows)
+ifeq ($(PLATFORM), windows)
+LIBPOLLSTER_SRC += \
+   $(LIBPOLLSTER_ROOT)src/win.cc
+else
 LIBPOLLSTER_SRC += \
    $(LIBPOLLSTER_ROOT)src/unix.cc
 endif
