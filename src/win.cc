@@ -214,14 +214,145 @@ exit:
       *waiter = r.Detach();
 }
 
-pollster::wait_loop::wait_loop(bool slave)
-   : nHandles(0)
+pollster::wait_loop::wait_loop()
+   : nHandles(0),
+     workerThread(nullptr),
+     workerMessageEvent(nullptr),
+     shutdown(false)
 {
    memset(handles, 0xff, sizeof(handles));
 }
 
 pollster::wait_loop::~wait_loop()
 {
+   if (workerThread)
+   {
+      EnterCriticalSection(lock);
+      shutdown = true;
+      SetEvent(workerMessageEvent);
+      LeaveCriticalSection(lock);
+
+      WaitForSingleObject(workerThread, INFINITE);
+   }
+
+   if (lock)
+      DeleteCriticalSection(lock);
+   if (workerThread)
+      CloseHandle(workerThread);
+   if (workerMessageEvent)
+      CloseHandle(workerMessageEvent);
+}
+
+void
+pollster::wait_loop::start_worker(error *err)
+{
+   if (workerThread)
+      ERROR_SET(err, unknown, "Thread already started");
+   if (nHandles)
+      ERROR_SET(err, unknown, "Handle list already non-empty");
+
+   if (!lock)
+      InitializeCriticalSection(lock = &lockStorage);
+
+   if (!workerMessageEvent)
+      workerMessageEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+   if (!workerMessageEvent)
+      ERROR_SET(err, win32, GetLastError());
+
+   handles[0] = workerMessageEvent;
+   objects[0] = nullptr;
+   nHandles++;
+
+   workerThread = CreateThread(
+      nullptr,
+      0,
+      ThreadProcStatic,
+      this,
+      0,
+      nullptr
+   );
+   if (!workerThread)
+      ERROR_SET(err, win32, GetLastError());
+exit:;
+}
+
+void
+pollster::wait_loop::ThreadProc(error *err)
+{
+   bool selfShutdown = false;
+
+   while (!shutdown)
+   {
+      exec(nullptr, err);
+      ERROR_CHECK(err);
+
+      if (nHandles == 1)
+      {
+         EnterCriticalSection(lock);
+         if (nHandles == 1 && !messageQueue.size())
+            selfShutdown = shutdown = true;
+         LeaveCriticalSection(lock);
+      }
+   }
+
+exit:
+
+   // TODO: unlink self from global list
+
+   if (ERROR_FAILED(err) && !shutdown)
+   {
+      EnterCriticalSection(lock);
+      selfShutdown = shutdown = true;
+      // XXX: what if there are jobs in the queue?
+      LeaveCriticalSection(lock);
+   }
+
+   if (selfShutdown)
+   {
+      auto h = workerThread;
+      workerThread = nullptr;
+      CloseHandle(h);
+      delete this;
+   }
+}
+
+DWORD WINAPI
+pollster::wait_loop::ThreadProcStatic(PVOID thisp)
+{
+   wait_loop *This = (wait_loop*)thisp;
+   error err;
+   This->ThreadProc(&err);
+   return ERROR_FAILED(&err);
+}
+
+bool
+pollster::wait_loop::enqueue_work(std::function<void(error*)> func, error *err)
+{
+   PCRITICAL_SECTION locked = nullptr;
+   bool r = false;
+
+   if (!workerThread)
+      ERROR_SET(err, unknown, "worker thread not started");
+
+   EnterCriticalSection(locked = lock);
+   auto wasEmpty = !messageQueue.size();
+   if (shutdown)
+      goto exit;
+   try
+   {
+      messageQueue.push_back(func);
+   }
+   catch (std::bad_alloc)
+   {
+      ERROR_SET(err, nomem);
+   }
+   if (wasEmpty)
+      SetEvent(workerMessageEvent);
+   r = true;
+exit:
+   if (locked)
+      LeaveCriticalSection(locked);
+   return r;
 }
 
 int
@@ -310,8 +441,25 @@ pollster::wait_loop::exec(timer *optional_timer, error *err)
 
    if (idx >= 0)
    {
-      objects[idx]->signal_from_backend(err);
-      ERROR_CHECK(err);
+      if (workerMessageEvent && handles[idx] == workerMessageEvent)
+      {
+         std::vector<std::function<void(error*)>> queueDrain;
+
+         EnterCriticalSection(lock);
+         std::swap(queueDrain, messageQueue);
+         LeaveCriticalSection(lock);
+
+         for (auto &fn : queueDrain)
+         {
+            fn(err);
+            ERROR_CHECK(err);
+         }
+      }
+      else
+      {
+         objects[idx]->signal_from_backend(err);
+         ERROR_CHECK(err);
+      }
    }
 
    if (optional_timer)

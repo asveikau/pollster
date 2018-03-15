@@ -4,6 +4,9 @@
 #include "pollster.h"
 #include "timer.h"
 
+#include <vector>
+#include <functional>
+
 namespace pollster {
 
 class wait_loop
@@ -12,13 +15,34 @@ class wait_loop
    HANDLE handles[MAXIMUM_WAIT_OBJECTS];
    int nHandles;
 
+   PCRITICAL_SECTION lock;
+   CRITICAL_SECTION lockStorage;
+   HANDLE workerThread;
+   HANDLE workerMessageEvent;
+   std::vector<std::function<void(error*)>> messageQueue;
+   bool shutdown;
+
    int
    find_handle(HANDLE h);
 
+   static DWORD WINAPI
+   ThreadProcStatic(PVOID thisp);
+
+   void
+   ThreadProc(error *err);
+
 public:
-   wait_loop(bool is_slave=false);
+   wait_loop();
    wait_loop(const wait_loop&) = delete;
    ~wait_loop();
+
+   void
+   start_worker(error *err);
+
+   // Returns false if thread is shutting down.
+   //
+   bool
+   enqueue_work(std::function<void(error*)> func, error *err);
 
    int
    slots_available(void);
