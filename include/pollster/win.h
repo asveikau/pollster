@@ -6,9 +6,37 @@
 
 namespace pollster {
 
+class wait_loop
+{
+   common::Pointer<event> objects[MAXIMUM_WAIT_OBJECTS];
+   HANDLE handles[MAXIMUM_WAIT_OBJECTS];
+   int nHandles;
+
+   int
+   find_handle(HANDLE h);
+
+public:
+   wait_loop(bool is_slave=false);
+   wait_loop(const wait_loop&) = delete;
+   ~wait_loop();
+
+   int
+   slots_available(void);
+
+   void
+   add_handle(HANDLE h, event *object, error *err);
+
+   void
+   remove_handle(HANDLE h);
+
+   void
+   exec(timer *optional_timer, error *err);
+};
+
 struct win_backend : public waiter
 {
    timer timer;
+   wait_loop wait_loop;
 
    void
    add(HANDLE handle, event *object, error *err);

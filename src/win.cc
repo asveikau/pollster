@@ -8,9 +8,10 @@ namespace {
 
 struct handle_wrapper_base : virtual public pollster::event
 {
+   pollster::wait_loop *loop;
    HANDLE handle;
 
-   handle_wrapper_base() : handle(INVALID_HANDLE_VALUE) {}
+   handle_wrapper_base() : loop(nullptr), handle(INVALID_HANDLE_VALUE) {}
    ~handle_wrapper_base()
    {
       if (handle && handle != INVALID_HANDLE_VALUE)
@@ -20,7 +21,11 @@ struct handle_wrapper_base : virtual public pollster::event
    void
    remove(error *err)
    {
-      // TODO
+      if (loop)
+      {
+         loop->remove_handle(handle);
+         loop = nullptr;
+      }
    }
 };
 
@@ -102,13 +107,18 @@ pollster::win_backend::add(
    error *err
 )
 {
-   // TODO
+   if (wait_loop.slots_available())
+      wait_loop.add_handle(handle, ev, err);
+   else
+   {
+      // TODO
+   }
 }
 
 void
 pollster::win_backend::exec(error *err)
 {
-   // TODO
+   wait_loop.exec(&timer, err);
 }
 
 void
