@@ -195,16 +195,16 @@ pollster::create(
    error *err
 )
 {
-	common::Pointer<kqueue_backend> r;
+   common::Pointer<kqueue_backend> r;
 
-	try
-	{
-		*r.GetAddressOf() = new kqueue_backend();
-	}
-	catch (std::bad_alloc)
-	{
-		ERROR_SET(err, nomem);
-	}
+   try
+   {
+      *r.GetAddressOf() = new kqueue_backend();
+   }
+   catch (std::bad_alloc)
+   {
+      ERROR_SET(err, nomem);
+   }
 
    r->initialize(err);
    ERROR_CHECK(err);
