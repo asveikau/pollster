@@ -14,7 +14,7 @@ create_socket(const char *host, const char *service, error *err)
    struct addrinfo hint = {0};
    struct addrinfo *addrs = nullptr;
    int r = 0;
-   int fd = -1;
+   SOCKET fd = INVALID_SOCKET;
 
    hint.ai_socktype = SOCK_STREAM;
 
@@ -23,21 +23,21 @@ create_socket(const char *host, const char *service, error *err)
       ERROR_SET(err, unknown, gai_strerror(r));
 
    fd = socket(addrs->ai_family, addrs->ai_socktype, addrs->ai_protocol);
-   if (fd < 0)
-      ERROR_SET(err, errno, errno);
+   if (fd == INVALID_SOCKET)
+      ERROR_SET(err, socket);
 
    if (connect(fd, addrs->ai_addr, addrs->ai_addrlen))
-      ERROR_SET(err, errno, errno);
+      ERROR_SET(err, socket);
 
-   if (fcntl(fd, F_SETFL, O_NONBLOCK, 1))
-      ERROR_SET(err, errno, errno);
+   set_nonblock(fd, true, err);
+   ERROR_CHECK(err);
 
 exit:
    if (addrs) freeaddrinfo(addrs);
    if (ERROR_FAILED(err) && fd >= 0)
    {
-      close(fd);
-      fd = -1;
+      closesocket(fd);
+      fd = INVALID_SOCKET;
    }
    return fd;
 }
@@ -53,7 +53,7 @@ main(int argc, char **argv)
    std::vector<char> writeBuffer;
    std::function<void(const void*, size_t, error *)> write_fn;
    bool gotStop = false;
-   int fd = -1;
+   SOCKET fd =INVALID_SOCKET;
    error err;
 
    log_register_callback(

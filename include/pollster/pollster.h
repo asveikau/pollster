@@ -6,12 +6,13 @@
 
 #include <functional>
 
+#if !defined(_MSC_VER) && !defined(SOCKET_defined_)
+typedef int SOCKET;
+#define SOCKET_defined_
+#endif
+
 namespace pollster
 {
-
-#ifndef _MSC_VER
-typedef int SOCKET;
-#endif
 
 struct event : virtual public common::RefCountable
 {
