@@ -6,7 +6,7 @@ CXXFLAGS += $(CFLAGS)
 
 all-phony: $(LIBPOLLSTER) test$(EXESUFFIX)
 
-test$(EXESUFFIX): src/test.cc $(LIBPOLLSTER)
+test$(EXESUFFIX): src/test.cc $(LIBPOLLSTER) $(LIBCOMMON)
 	${CXX} ${CXXFLAGS} ${LIBPOLLSTER_CXXFLAGS} -o $@ $< -L. -lpollster -L$(LIBCOMMON_ROOT) -lcommon $(CXXLIBS)
 
 clean:
