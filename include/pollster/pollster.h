@@ -9,6 +9,10 @@
 namespace pollster
 {
 
+#ifndef _MSC_VER
+typedef int SOCKET;
+#endif
+
 struct event : virtual public common::RefCountable
 {
    virtual void remove(error *err) = 0;
@@ -61,7 +65,7 @@ struct waiter : public common::RefCountable
 {
    virtual void
    add_socket(
-      int fd,
+      SOCKET fd,
       bool write,
       socket_event **ev,
       error *err
