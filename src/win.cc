@@ -2,6 +2,8 @@
 #include <pollster/win.h>
 #include <pollster/backends.h>
 
+#include <string.h>
+
 using namespace common;
 
 namespace {
@@ -210,4 +212,113 @@ pollster::create_win(waiter **waiter, error *err)
 exit:
    if (!ERROR_FAILED(err))
       *waiter = r.Detach();
+}
+
+pollster::wait_loop::wait_loop(bool slave)
+   : nHandles(0)
+{
+   memset(handles, 0xff, sizeof(handles));
+}
+
+pollster::wait_loop::~wait_loop()
+{
+}
+
+int
+pollster::wait_loop::slots_available(void)
+{
+   return ARRAY_SIZE(handles) - nHandles;
+}
+
+void
+pollster::wait_loop::add_handle(HANDLE h, event *object, error *err)
+{
+   if (nHandles == ARRAY_SIZE(handles))
+      ERROR_SET(err, unknown, "Exceeded limit of handles");
+
+   handles[nHandles] = h;
+   objects[nHandles] = object;
+   ++nHandles;
+exit:;
+}
+
+int
+pollster::wait_loop::find_handle(HANDLE h)
+{
+   for (int i=0; i<nHandles; ++i)
+      if (handles[i] == h)
+         return i;
+   return -1;
+}
+
+
+void
+pollster::wait_loop::remove_handle(HANDLE h)
+{
+   auto i = find_handle(h);
+   if (i >= 0)
+   {
+      if (i != nHandles - 1)
+      {
+         handles[i] = handles[nHandles - 1];
+         objects[i] = std::move(objects[nHandles - 1]);
+      }
+      --nHandles;
+      handles[nHandles] = INVALID_HANDLE_VALUE;
+      objects[nHandles] = nullptr;
+   }
+}
+
+void
+pollster::wait_loop::exec(timer *optional_timer, error *err)
+{
+   DWORD result = 0;
+   DWORD timeout = INFINITE;
+   int idx = -1;
+
+   if (optional_timer)
+   {
+      auto t = optional_timer->next_timer();
+      if (t >= 0)
+      {
+         const DWORD max = (DWORD)~0;
+         if (t > max)
+            t = max;
+         timeout = t;
+
+         optional_timer->begin_poll(err);
+         ERROR_CHECK(err);
+      }
+      else
+      {
+         optional_timer = nullptr;
+      }
+   }
+
+   result = WaitForMultipleObjects(
+      nHandles,
+      handles,
+      FALSE,
+      timeout
+   );
+   if (result == WAIT_FAILED)
+      ERROR_SET(err, win32, GetLastError());
+   else if (result >= WAIT_OBJECT_0 && result < WAIT_OBJECT_0+nHandles)
+      idx = result - WAIT_OBJECT_0;
+   else if (result >= WAIT_ABANDONED_0 && result < WAIT_ABANDONED_0+nHandles)
+      idx = result - WAIT_ABANDONED_0;
+
+   if (idx >= 0)
+   {
+      objects[idx]->signal_from_backend(err);
+      ERROR_CHECK(err);
+   }
+
+   if (optional_timer)
+   {
+      optional_timer->end_poll(err);
+      ERROR_CHECK(err);
+   }
+
+exit:;
 }
