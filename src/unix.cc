@@ -2,6 +2,8 @@
 #include <fcntl.h>
 
 #include <pollster/unix.h>
+#include <pthread.h>
+#include <signal.h>
 
 using namespace common;
 
@@ -124,12 +126,31 @@ struct auto_reset_wrapper : public fd_wrapper_base, public pollster::auto_reset_
    signal(error *err)
    {
       char ch = 0;
-      int r = write(writefd, &ch, 1);
+      int r = 0;
+      sigset_t sigset, old;
+      bool masked = false;
+
+      sigemptyset(&sigset);
+      sigaddset(&sigset, SIGPIPE);
+
+      if (pthread_sigmask(SIG_BLOCK, &sigset, &old))
+         ERROR_SET(err, errno, errno);
+
+      masked = true;
+
+      r = write(writefd, &ch, 1);
       if (r < 0)
          ERROR_SET(err, errno, errno);
       if (r != 1)
          ERROR_SET(err, unknown, "write: unexpected return value");
-   exit:;
+   exit:
+      if (err->source == ERROR_SRC_ERRNO && err->code == EPIPE)
+      {
+         int sig = SIGPIPE;
+         sigwait(&sigset, &sig);
+      }
+      if (masked)
+         pthread_sigmask(SIG_SETMASK, &old, nullptr);
    }
 };
 
