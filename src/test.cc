@@ -1,6 +1,7 @@
 #include <pollster/socket.h>
 #include <pollster/pollster.h>
 #include <common/logger.h>
+#include <common/thread.h>
 
 #include <vector>
 #include <stdio.h>
@@ -17,6 +18,9 @@ create_socket(const char *host, const char *service, error *err)
    SOCKET fd = INVALID_SOCKET;
 
    hint.ai_socktype = SOCK_STREAM;
+
+   socket_startup(err);
+   ERROR_CHECK(err);
 
    r = getaddrinfo(host, service, &hint, &addrs);
    if (r)
@@ -85,7 +89,7 @@ main(int argc, char **argv)
       char buf[4096];
       int r;
 
-      while (writeBuffer.size() && (r = write(fd, writeBuffer.data(), writeBuffer.size())) > 0)
+      while (writeBuffer.size() && (r = send(fd, writeBuffer.data(), writeBuffer.size(), 0)) > 0)
       {
          writeBuffer.erase(writeBuffer.begin(), writeBuffer.begin() + r);
          if (!writeBuffer.size())
@@ -95,7 +99,7 @@ main(int argc, char **argv)
          }
       }
 
-      while ((r = read(fd, buf, sizeof(buf))) > 0)
+      while ((r = recv(fd, buf, sizeof(buf), 0)) > 0)
       {
          fwrite(buf, 1, r, stdout);
          fflush(stdout);
@@ -139,6 +143,7 @@ main(int argc, char **argv)
       gotStop = true;
    };
 
+#if !defined(_MSC_VER)
    waiter->add_socket(
       0,
       false,
@@ -179,6 +184,9 @@ main(int argc, char **argv)
    exit:;
 #undef exit
    };
+#else
+   // TODO
+#endif
 
    while (!gotStop)
    {

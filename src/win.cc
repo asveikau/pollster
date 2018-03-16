@@ -300,6 +300,7 @@ exit:
 
 pollster::wait_loop::wait_loop(PCRITICAL_SECTION listLock_)
    : nHandles(0),
+     lock(nullptr),
      workerThread(nullptr),
      workerMessageEvent(nullptr),
      shutdown(false),

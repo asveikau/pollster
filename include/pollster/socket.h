@@ -35,6 +35,16 @@ set_nonblock(SOCKET fd, bool on, error *err)
 exit:;
 }
 
+static INLINE
+void
+socket_startup(error *err)
+{
+   WSADATA data = {0};
+   if (WSAStartup(MAKEWORD(2,2), &data))
+      ERROR_SET(err, win32, GetLastError());
+exit:;
+}
+
 #else
 
 #include <sys/types.h>
@@ -73,6 +83,8 @@ set_nonblock(int fd, bool on, error *err)
       ERROR_SET(err, errno, errno);
 exit:;
 }
+
+#define socket_startup(...) ((void)0)
 
 #endif
 
