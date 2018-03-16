@@ -74,10 +74,6 @@ struct socket_wrapper : public handle_wrapper_base, public pollster::socket_even
 
 struct auto_reset_wrapper : public handle_wrapper_base, public pollster::auto_reset_signal
 {
-   bool repeat;
-
-   auto_reset_wrapper() : repeat(false) {}
-
    void
    remove(error *err)
    {
@@ -261,7 +257,18 @@ pollster::win_backend::add_auto_reset_signal(
    add(e->handle, e.Get(), err);
    ERROR_CHECK(err);
 
-   e->repeat = repeating;
+   if (!repeating)
+   {
+      auto p = e.Get();
+      e->on_signal_impl = [p] (error *err) -> void
+      {
+         if (p->on_signal)
+            p->on_signal(err);
+         error_clear(err);
+         p->remove(err);
+         error_clear(err);       
+      };
+   }
 
 exit:
    if (!ERROR_FAILED(err))
