@@ -214,15 +214,29 @@ main(int argc, char **argv)
             SetConsoleCP(CP_UTF8);
 
             ctrl.nLength = sizeof(ctrl);
-            #define CTRL_X(UPPER) (1 << (1 + ((UPPER) - 'A')))
-            ctrl.dwCtrlWakeupMask = CTRL_X('D') | CTRL_X('Z');
-            #undef CTRL_X
+            #define CTRL_X(UPPER) (1 + ((UPPER) - 'A'))
+            ctrl.dwCtrlWakeupMask = (1UL << CTRL_X('D')) | (1UL << CTRL_X('Z'));
 
             while (ReadConsoleA(stdIn, buf, sizeof(buf), &out, &ctrl) && out)
             {
+               bool eof = false;
+
+               for (int i=0; i<out; ++i)
+               {
+                  if (buf[i] == CTRL_X('D') || buf[i] == CTRL_X('Z'))
+                  {
+                     out = i;
+                     eof = true;
+                  }
+               }
+
                write_fn(buf, out, &err);
                ERROR_CHECK(&err);
+
+               if (eof)
+                  break;
             }
+            #undef CTRL_X
          exit:
             error_clear(&err);
             stop->signal(&err);
