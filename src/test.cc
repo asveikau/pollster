@@ -3,11 +3,17 @@
 #include <common/logger.h>
 #include <common/thread.h>
 
+#include <mutex>
 #include <vector>
 #include <stdio.h>
 
 using namespace common;
 using namespace pollster;
+
+#if defined(_MSC_VER)
+static
+std::mutex io_lock;
+#endif
 
 static int
 create_socket(const char *host, const char *service, error *err)
@@ -89,6 +95,9 @@ main(int argc, char **argv)
       char buf[4096];
       int r;
 
+#if defined(_MSC_VER)
+      {std::lock_guard<std::mutex> lock(io_lock);
+#endif
       while (writeBuffer.size() && (r = send(fd, writeBuffer.data(), writeBuffer.size(), 0)) > 0)
       {
          writeBuffer.erase(writeBuffer.begin(), writeBuffer.begin() + r);
@@ -98,6 +107,9 @@ main(int argc, char **argv)
             ERROR_CHECK(err);
          }
       }
+#if defined(_MSC_VER)
+      } // end lock guard
+#endif
 
       while ((r = recv(fd, buf, sizeof(buf), 0)) > 0)
       {
@@ -111,6 +123,9 @@ main(int argc, char **argv)
    write_fn = [socket, &writeBuffer] (const void *buf, size_t len, error *err) -> void
    {
 #define exit innerExit
+#if defined(_MSC_VER)
+      std::lock_guard<std::mutex> lock(io_lock);
+#endif
       bool was_empty = !writeBuffer.size();
 
       try
@@ -185,7 +200,39 @@ main(int argc, char **argv)
 #undef exit
    };
 #else
-   // TODO
+   {
+      thread_id id;
+      common::create_thread(
+         [write_fn, stop] (void) -> void
+         {
+            HANDLE stdIn = GetStdHandle(STD_INPUT_HANDLE);
+            char buf[4096];
+            DWORD out;
+            CONSOLE_READCONSOLE_CONTROL ctrl = {0};
+            error err;
+
+            SetConsoleCP(CP_UTF8);
+
+            ctrl.nLength = sizeof(ctrl);
+            #define CTRL_X(UPPER) (1 << (1 + ((UPPER) - 'A')))
+            ctrl.dwCtrlWakeupMask = CTRL_X('D') | CTRL_X('Z');
+            #undef CTRL_X
+
+            while (ReadConsoleA(stdIn, buf, sizeof(buf), &out, &ctrl) && out)
+            {
+               write_fn(buf, out, &err);
+               ERROR_CHECK(&err);
+            }
+         exit:
+            error_clear(&err);
+            stop->signal(&err);
+         },
+         &id,
+         &err
+      );
+      ERROR_CHECK(&err);
+      detach_thread(&id);
+   }
 #endif
 
    while (!gotStop)
