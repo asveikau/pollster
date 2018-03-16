@@ -21,6 +21,11 @@ class wait_loop
    HANDLE workerMessageEvent;
    std::vector<std::function<void(error*)>> messageQueue;
    bool shutdown;
+   wait_loop **prev, *next;
+   PCRITICAL_SECTION listLock;
+
+   void
+   unlink(void);
 
    int
    find_handle(HANDLE h);
@@ -32,9 +37,20 @@ class wait_loop
    ThreadProc(error *err);
 
 public:
-   wait_loop();
+   wait_loop(PCRITICAL_SECTION listLock = nullptr);
    wait_loop(const wait_loop&) = delete;
    ~wait_loop();
+
+   int handicap;
+
+   void
+   link(wait_loop **prev);
+
+   wait_loop *
+   get_next(void) { return next; }
+
+   wait_loop **
+   get_next_ptr(void) { return &next; }
 
    void
    start_worker(error *err);
@@ -61,6 +77,10 @@ struct win_backend : public waiter
 {
    timer timer;
    wait_loop wait_loop;
+   CRITICAL_SECTION listLock;
+
+   win_backend();
+   ~win_backend();
 
    void
    add(HANDLE handle, event *object, error *err);

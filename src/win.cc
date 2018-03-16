@@ -2,6 +2,8 @@
 #include <pollster/win.h>
 #include <pollster/backends.h>
 
+#include <common/misc.h>
+
 #include <string.h>
 
 using namespace common;
@@ -102,6 +104,28 @@ struct auto_reset_wrapper : public handle_wrapper_base, public pollster::auto_re
 
 } // end namespace
 
+pollster::win_backend::win_backend()
+{
+   InitializeCriticalSection(&listLock);
+}
+
+pollster::win_backend::~win_backend()
+{
+   EnterCriticalSection(&listLock);
+   auto p = wait_loop.get_next();
+   while (p)
+   {
+      LeaveCriticalSection(&listLock);
+      delete p;
+      EnterCriticalSection(&listLock);
+      p = wait_loop.get_next();
+   }
+   LeaveCriticalSection(&listLock);
+
+   DeleteCriticalSection(&listLock);
+}
+
+
 void
 pollster::win_backend::add(
    HANDLE handle,
@@ -109,11 +133,71 @@ pollster::win_backend::add(
    error *err
 )
 {
+   pollster::wait_loop *to_delete = nullptr;
+
    if (wait_loop.slots_available())
       wait_loop.add_handle(handle, ev, err);
    else
    {
-      // TODO
+      EnterCriticalSection(&listLock);
+
+      auto p = wait_loop.get_next();
+      while (p)
+      {
+         auto q = p->get_next();
+
+         if (p->slots_available())
+         {
+            common::Pointer<pollster::event> evp = ev;
+            p->enqueue_work(
+               [this, p, handle, evp] (error *err) -> void
+               {
+                  p->add_handle(handle, evp.Get(), err);
+                  ERROR_CHECK(err);
+                  EnterCriticalSection(&listLock);
+                  p->handicap--;
+                  LeaveCriticalSection(&listLock);
+               exit:;
+               },
+               err
+            );
+            ERROR_CHECK(err);
+
+            p->handicap++;
+            break;
+         }
+
+         p = q;
+      }
+
+      if (!p)
+      {
+         to_delete = p = new (std::nothrow) pollster::wait_loop(&listLock);
+         if (!p)
+            ERROR_SET(err, nomem);
+         p->start_worker(err);
+         ERROR_CHECK(err);
+
+         common::Pointer<pollster::event> evp = ev;
+         p->enqueue_work(
+            [p, handle, evp] (error *err) -> void
+            {
+               p->add_handle(handle, evp.Get(), err);
+               ERROR_CHECK(err);
+            exit:;
+            },
+            err
+         );
+         ERROR_CHECK(err);
+
+         p->link(wait_loop.get_next_ptr());
+         to_delete = nullptr;
+      }
+
+   exit:
+      LeaveCriticalSection(&listLock);
+      if (to_delete)
+         delete to_delete;
    }
 }
 
@@ -214,11 +298,15 @@ exit:
       *waiter = r.Detach();
 }
 
-pollster::wait_loop::wait_loop()
+pollster::wait_loop::wait_loop(PCRITICAL_SECTION listLock_)
    : nHandles(0),
      workerThread(nullptr),
      workerMessageEvent(nullptr),
-     shutdown(false)
+     shutdown(false),
+     prev(nullptr),
+     next(nullptr),
+     listLock(listLock_),
+     handicap(0)
 {
    memset(handles, 0xff, sizeof(handles));
 }
@@ -241,6 +329,32 @@ pollster::wait_loop::~wait_loop()
       CloseHandle(workerThread);
    if (workerMessageEvent)
       CloseHandle(workerMessageEvent);
+}
+
+void
+pollster::wait_loop::unlink(void)
+{
+   if (prev)
+   {
+      EnterCriticalSection(listLock);
+      if (next)
+         next->prev = prev;
+      *prev = next;
+      LeaveCriticalSection(listLock);
+
+      next = nullptr;
+      prev = nullptr;
+   }
+}
+
+void
+pollster::wait_loop::link(wait_loop **prev)
+{
+   prev = prev;
+   next = *prev;
+   *prev = this;
+   if (next)
+      next->prev = &next;
 }
 
 void
@@ -297,7 +411,7 @@ pollster::wait_loop::ThreadProc(error *err)
 
 exit:
 
-   // TODO: unlink self from global list
+   unlink();
 
    if (ERROR_FAILED(err) && !shutdown)
    {
@@ -358,7 +472,8 @@ exit:
 int
 pollster::wait_loop::slots_available(void)
 {
-   return ARRAY_SIZE(handles) - nHandles;
+   auto slots = ARRAY_SIZE(handles) - nHandles - handicap;
+   return MAX(slots, 0);
 }
 
 void
