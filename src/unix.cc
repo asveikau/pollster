@@ -15,6 +15,7 @@ struct fd_wrapper_base : virtual public pollster::event
    int fd;
 
    fd_wrapper_base() : p(nullptr), fd(-1) {}
+   ~fd_wrapper_base() { if (fd >= 0) close(fd); }
 
    void
    remove(error *err)
