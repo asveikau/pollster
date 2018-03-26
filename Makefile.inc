@@ -1,5 +1,7 @@
 
-LIBCOMMON_ROOT=../common/
+ifndef LIBCOMMON_ROOT
+LIBCOMMON_ROOT=$(LIBPOLLSTER_ROOT)../common/
+endif
 include $(LIBCOMMON_ROOT)Makefile.inc
 
 LIBPOLLSTER_CXXFLAGS += -fno-rtti
