@@ -26,6 +26,12 @@ LIBPOLLSTER_SRC += \
 LIBPOLLSTER_CXXFLAGS += -DUSE_KQUEUE
 endif
 
+ifeq ($(PLATFORM),linux)
+LIBPOLLSTER_SRC += \
+   $(LIBPOLLSTER_ROOT)src/epoll.cc
+LIBPOLLSTER_CXXFLAGS += -DUSE_EPOLL
+endif
+
 ifneq ($(PLATFORM), windows)
 LIBPOLLSTER_SRC += \
    $(LIBPOLLSTER_ROOT)src/poll.cc
