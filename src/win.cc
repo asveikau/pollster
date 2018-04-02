@@ -55,6 +55,12 @@ struct socket_wrapper : public handle_wrapper_base, public pollster::socket_even
    }
 
    void
+   detach()
+   {
+      fd = INVALID_SOCKET;
+   }
+
+   void
    remove(error *err)
    {
       handle_wrapper_base::remove(err);

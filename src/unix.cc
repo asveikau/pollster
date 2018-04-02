@@ -13,9 +13,18 @@ struct fd_wrapper_base : virtual public pollster::event
 {
    pollster::unix_backend *p;
    int fd;
+   bool detached;
 
-   fd_wrapper_base() : p(nullptr), fd(-1) {}
-   ~fd_wrapper_base() { if (fd >= 0) close(fd); }
+   fd_wrapper_base() : p(nullptr), fd(-1), detached(false) {}
+   ~fd_wrapper_base() { closeFd(); }
+
+   void
+   closeFd(void)
+   {
+      if (fd >= 0 && !detached)
+         close(fd);
+      fd = -1;
+   }
 
    void
    remove(error *err)
@@ -31,14 +40,16 @@ struct fd_wrapper_base : virtual public pollster::event
 
       p = nullptr;
 
-      if (fd >= 0)
-      {
-         close(fd);
-         fd = -1;
-      }
+      closeFd();
 
       if (removed)
          Release();
+   }
+
+   void
+   detach()
+   {
+      detached = true;
    }
 };
 
@@ -59,6 +70,12 @@ struct socket_wrapper : public fd_wrapper_base, public pollster::socket_event
       {
          p->set_write(fd, write, this, err);
       }
+   }
+
+   void
+   detach()
+   {
+      fd_wrapper_base::detach();      
    }
 };
 

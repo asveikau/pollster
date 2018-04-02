@@ -60,6 +60,7 @@ struct auto_reset_signal : virtual public event
 struct socket_event : virtual public event
 {
    virtual void set_needs_write(bool b, error *err) = 0;
+   virtual void detach() = 0;
 };
 
 struct waiter : public common::RefCountable
