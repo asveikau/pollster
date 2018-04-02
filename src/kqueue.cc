@@ -83,16 +83,29 @@ struct kqueue_backend : public pollster::unix_backend
    void
    add_fd(int fd, bool write, pollster::event *object, bool ref, error *err)
    {
-      auto ev = allocate(object, err);
-      ERROR_CHECK(err);
-
-      setup_kevent(ev, fd, EV_ADD, write, object);
+      struct kevent *ev = nullptr;
 
       if (ref)
       {
-         refCounts[(intptr_t)object] = common::Pointer<pollster::event>(object);
+         try
+         {
+            refCounts[(intptr_t)object] = common::Pointer<pollster::event>(object);
+         }
+         catch (std::bad_alloc)
+         {
+            ERROR_SET(err, nomem);
+         }
       }
-   exit:;
+
+      ev = allocate(object, err);
+      ERROR_CHECK(err);
+
+      setup_kevent(ev, fd, EV_ADD, write, object);
+   exit:
+      if (ERROR_FAILED(err) && ref)
+      {
+         refCounts.erase((intptr_t)object);
+      }
    }
 
    void
