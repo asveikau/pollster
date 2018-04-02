@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 #include <vector>
+#include <map>
 
 namespace {
 
@@ -17,6 +18,7 @@ struct kqueue_backend : public pollster::unix_backend
    int kq;
    std::vector<struct kevent> changelist;
    struct kevent *cursor, *last;
+   std::map<intptr_t, common::Pointer<pollster::event>> refCounts;
 
    kqueue_backend() : kq(-1), cursor(nullptr), last(nullptr) {}
    ~kqueue_backend() { if (kq >= 0) close(kq);}
@@ -87,7 +89,9 @@ struct kqueue_backend : public pollster::unix_backend
       setup_kevent(ev, fd, EV_ADD, write, object);
 
       if (ref)
-         object->AddRef();
+      {
+         refCounts[(intptr_t)object] = common::Pointer<pollster::event>(object);
+      }
    exit:;
    }
 
@@ -101,7 +105,7 @@ struct kqueue_backend : public pollster::unix_backend
 
       remove_pending(object);
 
-      object->Release();
+      refCounts.erase((intptr_t)object);
    exit:;
    }
 
