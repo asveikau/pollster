@@ -3,6 +3,7 @@
 
 #include "pollster.h"
 #include "timer.h"
+#include "messagequeue.h"
 
 #include <vector>
 #include <functional>
@@ -15,11 +16,9 @@ class wait_loop
    HANDLE handles[MAXIMUM_WAIT_OBJECTS];
    int nHandles;
 
-   PCRITICAL_SECTION lock;
-   CRITICAL_SECTION lockStorage;
+   message_queue messageQueue;
    HANDLE workerThread;
    HANDLE workerMessageEvent;
-   std::vector<std::function<void(error*)>> messageQueue;
    bool shutdown;
    wait_loop **prev, *next;
    PCRITICAL_SECTION listLock;

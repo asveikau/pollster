@@ -313,7 +313,6 @@ exit:
 
 pollster::wait_loop::wait_loop(PCRITICAL_SECTION listLock_)
    : nHandles(0),
-     lock(nullptr),
      workerThread(nullptr),
      workerMessageEvent(nullptr),
      shutdown(false),
@@ -329,16 +328,17 @@ pollster::wait_loop::~wait_loop()
 {
    if (workerThread)
    {
-      EnterCriticalSection(lock);
-      shutdown = true;
-      SetEvent(workerMessageEvent);
-      LeaveCriticalSection(lock);
+      messageQueue.synchronize(
+         [&] () -> void
+         {
+            shutdown = true;
+            SetEvent(workerMessageEvent);
+         }
+      );
 
       WaitForSingleObject(workerThread, INFINITE);
    }
 
-   if (lock)
-      DeleteCriticalSection(lock);
    if (workerThread)
       CloseHandle(workerThread);
    if (workerMessageEvent)
@@ -379,13 +379,23 @@ pollster::wait_loop::start_worker(error *err)
    if (nHandles)
       ERROR_SET(err, unknown, "Handle list already non-empty");
 
-   if (!lock)
-      InitializeCriticalSection(lock = &lockStorage);
+   messageQueue.initialize(err);
+   ERROR_CHECK(err);
 
    if (!workerMessageEvent)
       workerMessageEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
    if (!workerMessageEvent)
       ERROR_SET(err, win32, GetLastError());
+
+   {
+      auto handle = workerMessageEvent;
+      messageQueue.on_enqueue = [handle] (error *err) -> void
+      {
+         if (!SetEvent(handle))
+            ERROR_SET(err, win32, GetLastError());
+      exit:;
+      };
+   }
 
    handles[0] = workerMessageEvent;
    objects[0] = nullptr;
@@ -416,10 +426,13 @@ pollster::wait_loop::ThreadProc(error *err)
 
       if (nHandles == 1)
       {
-         EnterCriticalSection(lock);
-         if (nHandles == 1 && !messageQueue.size())
-            selfShutdown = shutdown = true;
-         LeaveCriticalSection(lock);
+         messageQueue.synchronize(
+            [&] () -> void
+            {
+               if (nHandles == 1 && messageQueue.is_empty())
+                  selfShutdown = shutdown = true;
+            }
+         );
       }
    }
 
@@ -429,10 +442,13 @@ exit:
 
    if (ERROR_FAILED(err) && !shutdown)
    {
-      EnterCriticalSection(lock);
-      selfShutdown = shutdown = true;
-      // XXX: what if there are jobs in the queue?
-      LeaveCriticalSection(lock);
+      messageQueue.synchronize(
+         [&] () -> void
+         {
+            selfShutdown = shutdown = true;
+            // XXX: what if there are jobs in the queue?            
+         }
+      );
    }
 
    if (selfShutdown)
@@ -456,30 +472,14 @@ pollster::wait_loop::ThreadProcStatic(PVOID thisp)
 bool
 pollster::wait_loop::enqueue_work(std::function<void(error*)> func, error *err)
 {
-   PCRITICAL_SECTION locked = nullptr;
    bool r = false;
 
    if (!workerThread)
       ERROR_SET(err, unknown, "worker thread not started");
 
-   EnterCriticalSection(locked = lock);
-   auto wasEmpty = !messageQueue.size();
-   if (shutdown)
-      goto exit;
-   try
-   {
-      messageQueue.push_back(func);
-   }
-   catch (std::bad_alloc)
-   {
-      ERROR_SET(err, nomem);
-   }
-   if (wasEmpty)
-      SetEvent(workerMessageEvent);
-   r = true;
+   r = messageQueue.enqueue_work(func, shutdown, err);
+   ERROR_CHECK(err);
 exit:
-   if (locked)
-      LeaveCriticalSection(locked);
    return r;
 }
 
@@ -572,17 +572,8 @@ pollster::wait_loop::exec(timer *optional_timer, error *err)
    {
       if (workerMessageEvent && handles[idx] == workerMessageEvent)
       {
-         std::vector<std::function<void(error*)>> queueDrain;
-
-         EnterCriticalSection(lock);
-         std::swap(queueDrain, messageQueue);
-         LeaveCriticalSection(lock);
-
-         for (auto &fn : queueDrain)
-         {
-            fn(err);
-            ERROR_CHECK(err);
-         }
+         messageQueue.drain(err);
+         ERROR_CHECK(err);
       }
       else
       {
