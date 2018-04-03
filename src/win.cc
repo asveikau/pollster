@@ -496,6 +496,11 @@ pollster::wait_loop::add_handle(HANDLE h, event *object, error *err)
    if (nHandles == ARRAY_SIZE(handles))
       ERROR_SET(err, unknown, "Exceeded limit of handles");
 
+   if (object)
+   {
+      auto specific = reinterpret_cast<handle_wrapper_base*>(object);
+      specific->loop = this;
+   }
    handles[nHandles] = h;
    objects[nHandles] = object;
    ++nHandles;
