@@ -25,10 +25,12 @@ struct handle_wrapper_base : virtual public pollster::event
    void
    remove(error *err)
    {
-      if (loop)
+      auto p = loop;
+      loop = nullptr;
+
+      if (p)
       {
-         loop->remove_handle(handle);
-         loop = nullptr;
+         p->remove_handle(handle);
       }
    }
 };
