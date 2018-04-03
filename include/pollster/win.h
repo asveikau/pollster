@@ -10,9 +10,14 @@
 
 namespace pollster {
 
+namespace windows
+{
+   struct handle_wrapper_base;
+}
+
 class wait_loop
 {
-   common::Pointer<event> objects[MAXIMUM_WAIT_OBJECTS];
+   common::Pointer<windows::handle_wrapper_base> objects[MAXIMUM_WAIT_OBJECTS];
    HANDLE handles[MAXIMUM_WAIT_OBJECTS];
    int nHandles;
 
@@ -63,7 +68,7 @@ public:
    slots_available(void);
 
    void
-   add_handle(HANDLE h, event *object, error *err);
+   add_handle(HANDLE h, windows::handle_wrapper_base *object, error *err);
 
    void
    remove_handle(HANDLE h);
@@ -82,7 +87,7 @@ struct win_backend : public waiter
    ~win_backend();
 
    void
-   add(HANDLE handle, event *object, error *err);
+   add(HANDLE handle, windows::handle_wrapper_base *object, error *err);
 
    void
    add_socket(

@@ -8,7 +8,7 @@
 
 using namespace common;
 
-namespace {
+namespace pollster { namespace windows {
 
 struct handle_wrapper_base : virtual public pollster::event
 {
@@ -104,7 +104,7 @@ struct auto_reset_wrapper : public handle_wrapper_base, public pollster::auto_re
    }
 };
 
-} // end namespace
+} } // end namespace
 
 pollster::win_backend::win_backend()
 {
@@ -131,7 +131,7 @@ pollster::win_backend::~win_backend()
 void
 pollster::win_backend::add(
    HANDLE handle,
-   pollster::event *ev,
+   windows::handle_wrapper_base *ev,
    error *err
 )
 {
@@ -150,7 +150,7 @@ pollster::win_backend::add(
 
          if (p->slots_available())
          {
-            common::Pointer<pollster::event> evp = ev;
+            common::Pointer<windows::handle_wrapper_base> evp = ev;
             p->enqueue_work(
                [this, p, handle, evp] (error *err) -> void
                {
@@ -180,7 +180,7 @@ pollster::win_backend::add(
          p->start_worker(err);
          ERROR_CHECK(err);
 
-         common::Pointer<pollster::event> evp = ev;
+         common::Pointer<windows::handle_wrapper_base> evp = ev;
          p->enqueue_work(
             [p, handle, evp] (error *err) -> void
             {
@@ -217,11 +217,11 @@ pollster::win_backend::add_socket(
    error *err
 )
 {
-   Pointer<socket_wrapper> e;
+   Pointer<windows::socket_wrapper> e;
 
    try
    {
-      *e.GetAddressOf() = new socket_wrapper();
+      *e.GetAddressOf() = new windows::socket_wrapper();
    }
    catch (std::bad_alloc)
    {
@@ -246,11 +246,11 @@ pollster::win_backend::add_auto_reset_signal(
    error *err
 )
 {
-   Pointer<auto_reset_wrapper> e;
+   Pointer<windows::auto_reset_wrapper> e;
 
    try
    {
-      *e.GetAddressOf() = new auto_reset_wrapper();
+      *e.GetAddressOf() = new windows::auto_reset_wrapper();
    }
    catch (std::bad_alloc)
    {
@@ -337,6 +337,13 @@ pollster::wait_loop::~wait_loop()
       );
 
       WaitForSingleObject(workerThread, INFINITE);
+   }
+
+   for (auto i = nHandles; --i; )
+   {
+      auto p = objects[i].Get();
+      if (p)
+         p->loop = nullptr;
    }
 
    if (workerThread)
@@ -491,15 +498,14 @@ pollster::wait_loop::slots_available(void)
 }
 
 void
-pollster::wait_loop::add_handle(HANDLE h, event *object, error *err)
+pollster::wait_loop::add_handle(HANDLE h, windows::handle_wrapper_base *object, error *err)
 {
    if (nHandles == ARRAY_SIZE(handles))
       ERROR_SET(err, unknown, "Exceeded limit of handles");
 
    if (object)
    {
-      auto specific = reinterpret_cast<handle_wrapper_base*>(object);
-      specific->loop = this;
+      object->loop = this;
    }
    handles[nHandles] = h;
    objects[nHandles] = object;
