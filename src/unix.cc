@@ -5,6 +5,14 @@
 #include <pthread.h>
 #include <signal.h>
 
+#if defined(__linux__) && !defined(USE_EVENTFD)
+#define USE_EVENTFD 1
+#endif
+
+#ifdef USE_EVENTFD
+#include <sys/eventfd.h>
+#endif
+
 using namespace common;
 
 namespace {
@@ -81,19 +89,25 @@ struct socket_wrapper : public fd_wrapper_base, public pollster::socket_event
    }
 };
 
-struct auto_reset_wrapper : public fd_wrapper_base, public pollster::auto_reset_signal
+struct auto_reset_wrapper_base : public fd_wrapper_base, public pollster::auto_reset_signal
 {
-   int writefd;
    bool repeat;
 
-   auto_reset_wrapper() : writefd(-1), repeat(false) {}
-   ~auto_reset_wrapper() { if (writefd >= 0) close(writefd);}
+   auto_reset_wrapper_base() : repeat(false) {}
 
    void
    remove(error *err)
    {
       fd_wrapper_base::remove(err);
    }
+};
+
+struct auto_reset_wrapper : public auto_reset_wrapper_base
+{
+   int writefd;
+
+   auto_reset_wrapper() : writefd(-1) {}
+   ~auto_reset_wrapper() { if (writefd >= 0) close(writefd);}
 
    void
    create(error *err)
@@ -174,6 +188,63 @@ struct auto_reset_wrapper : public fd_wrapper_base, public pollster::auto_reset_
    }
 };
 
+#if defined(USE_EVENTFD)
+struct eventfd_wrapper : public auto_reset_wrapper_base
+{
+   void
+   create(error *err)
+   {
+      fd = eventfd(0, 0);
+      if (fd < 0)
+         ERROR_SET(err, errno, errno);
+      if (fcntl(fd, F_SETFL, O_NONBLOCK))
+         ERROR_SET(err, errno, errno);
+
+      on_signal_impl = [this] (error *err) -> void
+      {
+#define exit innerExit
+         uint64_t i;
+
+         while (read(fd, &i, sizeof(i)) == sizeof(i))
+         {
+            if (on_signal)
+            {
+               on_signal(err);
+               ERROR_CHECK(err);
+            }
+
+            if (!repeat)
+            {
+               remove(err); 
+               goto exit;
+            }
+         }
+
+         switch (errno)
+         {
+         case EAGAIN:
+         case EINTR:
+            break;
+         default:
+            ERROR_SET(err, errno, errno);
+         }
+      exit:;
+#undef exit
+      };
+   exit:;
+   }
+
+   void
+   signal(error *err)
+   {
+      uint64_t i = 1;
+      if (write(fd, &i, sizeof(i)) != sizeof(i))
+         ERROR_SET(err, errno, errno);
+   exit:;
+   }
+};
+#endif
+
 } // end namespace
 
 void
@@ -206,18 +277,21 @@ exit:
       *ev = e.Detach();
 }
 
+namespace {
+template <typename T>
 void
-pollster::unix_backend::add_auto_reset_signal(
-   bool repeating,
-   auto_reset_signal **ev,
-   error *err
-)
+try_create_auto_reset(auto_reset_wrapper_base **ev, error *err)
 {
-   Pointer<auto_reset_wrapper> e;
+   Pointer<T> e;
+
+   if (*ev)
+      goto exit;
+
+   error_clear(err);
 
    try
    {
-      *e.GetAddressOf() = new auto_reset_wrapper();
+      *e.GetAddressOf() = new T();
    }
    catch (std::bad_alloc)
    {
@@ -225,6 +299,27 @@ pollster::unix_backend::add_auto_reset_signal(
    }
 
    e->create(err);
+   ERROR_CHECK(err);
+
+   if (!ERROR_FAILED(err))
+      *ev = e.Detach();
+exit:;
+}
+} // end namespace
+
+void
+pollster::unix_backend::add_auto_reset_signal(
+   bool repeating,
+   auto_reset_signal **ev,
+   error *err
+)
+{
+   Pointer<auto_reset_wrapper_base> e;
+
+#ifdef USE_EVENTFD
+   try_create_auto_reset<eventfd_wrapper>(e.GetAddressOf(), err);
+#endif
+   try_create_auto_reset<auto_reset_wrapper>(e.GetAddressOf(), err);
    ERROR_CHECK(err);
 
    add_fd(e->fd, false, e.Get(), err);
