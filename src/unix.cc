@@ -21,24 +21,26 @@ struct fd_wrapper_base : virtual public pollster::event
    void
    closeFd(void)
    {
-      if (fd >= 0 && !detached)
-         close(fd);
+      auto p = fd;
       fd = -1;
+      if (p >= 0 && !detached)
+         close(p);
    }
 
    void
    remove(error *err)
    {
       bool removed = false;
-
-      if (p && fd >= 0)
-      {
-         AddRef();
-         p->remove_fd(fd, this, err);
-         removed = true;
-      }
+      auto q = p;
 
       p = nullptr;
+
+      if (q && fd >= 0)
+      {
+         AddRef();
+         q->remove_fd(fd, this, err);
+         removed = true;
+      }
 
       closeFd();
 
