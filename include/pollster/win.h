@@ -4,6 +4,7 @@
 #include "pollster.h"
 #include "timer.h"
 #include "messagequeue.h"
+#include "threads.h"
 
 #include <vector>
 #include <functional>
@@ -44,6 +45,8 @@ public:
    wait_loop(PCRITICAL_SECTION listLock = nullptr);
    wait_loop(const wait_loop&) = delete;
    ~wait_loop();
+
+   thread_helper threadHelper;
 
    int handicap;
 

@@ -3,12 +3,16 @@
 
 #include "pollster.h"
 #include "timer.h"
+#include "threads.h"
 
 namespace pollster {
 
 struct unix_backend : public waiter
 {
    timer timer;
+   thread_helper thread_helper;
+
+   unix_backend();
 
    virtual void
    add_fd(int fd, bool write_flag, event *object, error *err) = 0;
@@ -18,6 +22,12 @@ struct unix_backend : public waiter
 
    virtual void
    remove_fd(int fd, event *object, error *err) = 0;
+
+   void
+   base_add_fd(int fd, bool write_flag, event *object, error *err);
+
+   void
+   base_exec(error *err);
 
    void
    add_socket(

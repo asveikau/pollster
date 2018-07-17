@@ -110,6 +110,9 @@ struct poll_backend : public pollster::unix_backend
       auto timeoutInt = timer.next_timer();
       int n = 0;
 
+      base_exec(err);
+      ERROR_CHECK(err);
+
       if (timeoutInt >= 0)
       {
          if (timeoutInt > INT_MAX)

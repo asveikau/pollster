@@ -38,22 +38,32 @@ struct fd_wrapper_base : virtual public pollster::event
    void
    remove(error *err)
    {
-      bool removed = false;
-      auto q = p;
+      Pointer<fd_wrapper_base> rcThis;
 
+      auto q = p;
       p = nullptr;
 
       if (q && fd >= 0)
       {
-         AddRef();
+         rcThis = this;
+
+         if (!q->thread_helper.on_owning_thread())
+         {
+            q->thread_helper.enqueue_work(
+               [rcThis, q] (error *err) -> void
+               {
+                  q->remove_fd(rcThis->fd, rcThis.Get(), err);
+                  rcThis->closeFd();
+               },
+               err
+            );
+            return;
+         }
+
          q->remove_fd(fd, this, err);
-         removed = true;
       }
 
       closeFd();
-
-      if (removed)
-         Release();
    }
 
    void
@@ -78,6 +88,21 @@ struct socket_wrapper : public fd_wrapper_base, public pollster::socket_event
    {
       if (p && fd >= 0)
       {
+         if (!p->thread_helper.on_owning_thread())
+         {
+            Pointer<socket_wrapper> rcThis = this;
+
+            p->thread_helper.enqueue_work(
+               [rcThis, write] (error *err) -> void
+               {
+                  rcThis->set_needs_write(write, err);
+               },
+               err
+            );
+
+            return;
+         }
+
          p->set_write(fd, write, this, err);
       }
    }
@@ -247,6 +272,11 @@ struct eventfd_wrapper : public auto_reset_wrapper_base
 
 } // end namespace
 
+pollster::unix_backend::unix_backend()
+{
+   timer.thread_helper = &thread_helper;
+}
+
 void
 pollster::unix_backend::add_socket(
    int fd,
@@ -266,7 +296,7 @@ pollster::unix_backend::add_socket(
       ERROR_SET(err, nomem);
    }
 
-   add_fd(fd, write, e.Get(), err);
+   base_add_fd(fd, write, e.Get(), err);
    ERROR_CHECK(err);
 
    e->p = this;
@@ -322,7 +352,7 @@ pollster::unix_backend::add_auto_reset_signal(
    try_create_auto_reset<auto_reset_wrapper>(e.GetAddressOf(), err);
    ERROR_CHECK(err);
 
-   add_fd(e->fd, false, e.Get(), err);
+   base_add_fd(e->fd, false, e.Get(), err);
    ERROR_CHECK(err);
 
    e->p = this;
@@ -343,3 +373,31 @@ pollster::unix_backend::add_timer(
 {
    timer.add(millis, repeating, ev, err);
 }
+
+void
+pollster::unix_backend::base_exec(error *err)
+{
+   thread_helper_init args;
+   args.backend = this;
+   thread_helper.on_exec(&args, err);
+}
+
+void
+pollster::unix_backend::base_add_fd(int fd, bool write_flag, event *object, error *err)
+{
+   if (thread_helper.on_owning_thread())
+      add_fd(fd, write_flag, object, err);
+   else
+   {
+      Pointer<unix_backend> rcThis = this;
+      Pointer<event> rcEv = object;
+      thread_helper.enqueue_work(
+         [rcThis, fd, write_flag, rcEv] (error *err) -> void
+         {
+            rcThis->add_fd(fd, write_flag, rcEv.Get(), err);
+         },
+         err
+      );
+   }
+}
+

@@ -1,4 +1,5 @@
 #include <pollster/timer.h>
+#include <pollster/threads.h>
 #include <common/time.h>
 
 pollster::timer::timer()
@@ -27,8 +28,22 @@ pollster::timer::next_timer(void)
 }
 
 void
-pollster::timer::insert(timer_node *r)
+pollster::timer::insert(timer_node *r, error *err)
 {
+   if (thread_helper &&
+       !thread_helper->on_owning_thread())
+   {
+      thread_helper->enqueue_work(
+         [this, r] (error *err) -> void
+         {
+            insert(r, err);
+         },
+         err
+      );
+
+      return;
+   }
+
    r->pendingMillis = r->totalMillis;
 
    auto prev = &head;
@@ -60,7 +75,8 @@ pollster::timer::add(
 
    r->repeat = repeating;
    r->totalMillis = millis;
-   insert(r.Get());
+   insert(r.Get(), err);
+   ERROR_CHECK(err);
    r->AddRef();
 exit:
    if (!ERROR_FAILED(err))
@@ -111,7 +127,7 @@ pollster::timer::end_poll(error *err)
       }
 
       if (p->repeat)
-         insert(p);
+         insert(p, err);
       else
          p->Release();
    }
@@ -122,13 +138,30 @@ pollster::timer_node::timer_node()
      next(nullptr),
      repeat(false),
      pendingMillis(0),
-     totalMillis(0)
+     totalMillis(0),
+     thread_helper(nullptr)
 {
 }
 
 void
 pollster::timer_node::remove(error *err)
 {
+   if (thread_helper &&
+       !thread_helper->on_owning_thread())
+   {
+      common::Pointer<timer_node> rcThis = this;
+
+      thread_helper->enqueue_work(
+         [rcThis] (error *err) -> void
+         {
+            rcThis->remove(err);
+         },
+         err
+      );
+
+      return;
+   }
+
    if (prev)
    {
       *prev = next;

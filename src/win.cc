@@ -30,7 +30,20 @@ struct handle_wrapper_base : virtual public pollster::event
 
       if (p)
       {
-         p->remove_handle(handle);
+         if (p->threadHelper.on_owning_thread())
+            p->remove_handle(handle);
+         else
+         {
+            Pointer<handle_wrapper_base> rcThis = this;
+
+            p->threadHelper.enqueue_work(
+               [rcThis, p] (error *err) -> void
+               {
+                  p->remove_handle(rcThis->handle);
+               },
+               err
+            );
+         }
       }
    }
 };
@@ -111,6 +124,7 @@ struct auto_reset_wrapper : public handle_wrapper_base, public pollster::auto_re
 pollster::win_backend::win_backend()
 {
    InitializeCriticalSection(&listLock);
+   timer.thread_helper = &wait_loop.threadHelper;
 }
 
 pollster::win_backend::~win_backend()
@@ -139,7 +153,8 @@ pollster::win_backend::add(
 {
    pollster::wait_loop *to_delete = nullptr;
 
-   if (wait_loop.slots_available())
+   if (wait_loop.threadHelper.on_owning_thread() &&
+       wait_loop.slots_available())
       wait_loop.add_handle(handle, ev, err);
    else
    {
@@ -208,7 +223,13 @@ pollster::win_backend::add(
 void
 pollster::win_backend::exec(error *err)
 {
+   thread_helper_init init;
+   init.backend = this;
+   wait_loop.threadHelper.on_exec(&init, err);
+   ERROR_CHECK(err);
+
    wait_loop.exec(&timer, err);
+exit:;
 }
 
 void
@@ -427,6 +448,13 @@ void
 pollster::wait_loop::ThreadProc(error *err)
 {
    bool selfShutdown = false;
+
+   {
+      thread_helper_init init;
+      init.queue = &messageQueue;
+      threadHelper.on_exec(&init, err);
+      ERROR_CHECK(err);
+   }
 
    while (!shutdown)
    {

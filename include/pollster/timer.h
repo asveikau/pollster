@@ -5,12 +5,15 @@
 
 namespace pollster {
 
+class thread_helper;
+
 struct timer_node : public event
 {
    timer_node **prev, *next;
    bool repeat;
    uint64_t pendingMillis;
    uint64_t totalMillis;
+   thread_helper *thread_helper;
 
    timer_node();
 
@@ -23,12 +26,14 @@ class timer
    uint64_t last_time;
 
    void
-   insert(timer_node *n);
+   insert(timer_node *n, error *err);
 
 public:
 
    timer();
    ~timer();
+
+   thread_helper *thread_helper;
 
    int64_t
    next_timer(void);

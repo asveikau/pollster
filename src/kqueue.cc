@@ -159,6 +159,9 @@ struct kqueue_backend : public pollster::unix_backend
       struct timespec *timeout = nullptr;
       auto timeoutInt = timer.next_timer();
 
+      base_exec(err);
+      ERROR_CHECK(err);
+
       if (timeoutInt >= 0)
       {
          timeout = &timeoutStorage;
