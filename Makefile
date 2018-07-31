@@ -1,3 +1,4 @@
+.PHONY: all all-phony clean depend
 all: all-phony
 
 CFLAGS += -O2 -Wall
