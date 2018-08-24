@@ -7,8 +7,8 @@ pollster::message_queue::message_queue() : init(false)
 void
 pollster::message_queue::initialize(error *err)
 {
-   if (mutex_init(&lock))
-      ERROR_SET(err, unknown, "mutex init failed");
+   mutex_init(&lock, err);
+   ERROR_CHECK(err);
    init = true;
 exit:;
 }
