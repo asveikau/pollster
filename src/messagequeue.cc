@@ -1,4 +1,5 @@
 #include <pollster/messagequeue.h>
+#include <common/c++/lock.h>
 
 pollster::message_queue::message_queue() : init(false)
 {
@@ -19,29 +20,12 @@ pollster::message_queue::~message_queue()
       mutex_destroy(&lock);
 }
 
-namespace
-{
-   class locker
-   {
-      mutex *m;
-      bool locked;
-   public:
-      locker(mutex &m_) : m(&m_), locked(false) {}
-      locker(mutex *m_) : m(m_), locked(false) {}
-      locker(const locker&) = delete;
-      ~locker() { unlock(); }
-
-      void lock() { mutex_acquire(m); locked = true; }
-      void unlock() { if (locked) { mutex_release(m); locked = false; } }
-   };
-}
-
 void
 pollster::message_queue::synchronize(std::function<void(void)> op)
 {
-   locker l(lock);
+   common::locker l;
 
-   l.lock();
+   l.acquire(lock);
    op();
 }
 
@@ -49,11 +33,11 @@ void
 pollster::message_queue::drain(error *err)
 {
    std::vector<std::function<void(error*)>> queueDrain;
-   locker l(lock);
+   common::locker l;
 
-   l.lock();
+   l.acquire(lock);
    std::swap(queueDrain, queue);
-   l.unlock();
+   l.release();
 
    for (auto &fn : queueDrain)
    {
@@ -66,10 +50,10 @@ exit:;
 bool
 pollster::message_queue::enqueue_work(std::function<void(error*)> func, bool &shutdown, error *err)
 {
-   locker l(lock);
+   common::locker l;
    bool r = false;
 
-   l.lock();
+   l.acquire(lock);
    auto wasEmpty = !queue.size();
    if (shutdown)
       goto exit;
