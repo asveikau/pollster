@@ -1,6 +1,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include <common/c++/new.h>
+
 #include <pollster/unix.h>
 #include <pthread.h>
 #include <signal.h>
@@ -287,14 +289,8 @@ pollster::unix_backend::add_socket(
 {
    Pointer<socket_wrapper> e;
 
-   try
-   {
-      *e.GetAddressOf() = new socket_wrapper();
-   }
-   catch (std::bad_alloc)
-   {
-      ERROR_SET(err, nomem);
-   }
+   New(e.GetAddressOf(), err);
+   ERROR_CHECK(err);
 
    base_add_fd(fd, write, e.Get(), err);
    ERROR_CHECK(err);
@@ -319,14 +315,8 @@ try_create_auto_reset(auto_reset_wrapper_base **ev, error *err)
 
    error_clear(err);
 
-   try
-   {
-      *e.GetAddressOf() = new T();
-   }
-   catch (std::bad_alloc)
-   {
-      ERROR_SET(err, nomem);
-   }
+   New(e.GetAddressOf(), err);
+   ERROR_CHECK(err);
 
    e->create(err);
    ERROR_CHECK(err);

@@ -3,6 +3,7 @@
 #include <pollster/backends.h>
 
 #include <common/misc.h>
+#include <common/c++/new.h>
 
 #include <string.h>
 
@@ -242,14 +243,8 @@ pollster::win_backend::add_socket(
 {
    Pointer<windows::socket_wrapper> e;
 
-   try
-   {
-      *e.GetAddressOf() = new windows::socket_wrapper();
-   }
-   catch (std::bad_alloc)
-   {
-      ERROR_SET(err, nomem);
-   }
+   New(e.GetAddressOf(), err);
+   ERROR_CHECK(err);
 
    e->create(fd, write, err);
    ERROR_CHECK(err);
@@ -271,14 +266,8 @@ pollster::win_backend::add_auto_reset_signal(
 {
    Pointer<windows::auto_reset_wrapper> e;
 
-   try
-   {
-      *e.GetAddressOf() = new windows::auto_reset_wrapper();
-   }
-   catch (std::bad_alloc)
-   {
-      ERROR_SET(err, nomem);
-   }
+   New(e.GetAddressOf(), err);
+   ERROR_CHECK(err);
 
    e->create(err);
    ERROR_CHECK(err);
@@ -320,14 +309,8 @@ pollster::create_win(waiter **waiter, error *err)
 {
    common::Pointer<win_backend> r;
 
-   try
-   {
-      *r.GetAddressOf() = new win_backend();
-   }
-   catch (std::bad_alloc)
-   {
-      ERROR_SET(err, nomem);
-   }
+   New(r.GetAddressOf(), err);
+   ERROR_CHECK(err);
 
 exit:
    if (!ERROR_FAILED(err))

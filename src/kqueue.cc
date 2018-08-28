@@ -1,6 +1,7 @@
 #include <pollster/unix.h>
 #include <pollster/backends.h>
 #include <common/misc.h>
+#include <common/c++/new.h>
 
 #include <sys/types.h>
 #include <sys/event.h>
@@ -215,14 +216,8 @@ pollster::create_kqueue(waiter **waiter, error *err)
 {
    common::Pointer<kqueue_backend> r;
 
-   try
-   {
-      *r.GetAddressOf() = new kqueue_backend();
-   }
-   catch (std::bad_alloc)
-   {
-      ERROR_SET(err, nomem);
-   }
+   common::New(r.GetAddressOf(), err);
+   ERROR_CHECK(err);
 
    r->initialize(err);
    ERROR_CHECK(err);

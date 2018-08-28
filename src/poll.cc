@@ -1,6 +1,7 @@
 #include <pollster/unix.h>
 #include <pollster/backends.h>
 #include <common/misc.h>
+#include <common/c++/new.h>
 
 #include <poll.h>
 #include <limits.h>
@@ -154,14 +155,8 @@ pollster::create_poll(waiter **waiter, error *err)
 {
    common::Pointer<poll_backend> r;
 
-   try
-   {
-      *r.GetAddressOf() = new poll_backend();
-   }
-   catch (std::bad_alloc)
-   {
-      ERROR_SET(err, nomem);
-   }
+   common::New(r.GetAddressOf(), err);
+   ERROR_CHECK(err);
 
 exit:
    if (!ERROR_FAILED(err))
