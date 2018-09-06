@@ -34,7 +34,9 @@ struct event : virtual public common::RefCountable
    void
    signal_from_backend(bool check_error, error *err)
    {
+#ifndef _MSC_VER
       common::Pointer<event> rc = this;
+#endif
 
       if (on_signal_impl)
          on_signal_impl(err);
