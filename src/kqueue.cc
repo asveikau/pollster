@@ -204,6 +204,15 @@ struct kqueue_backend : public pollster::unix_backend
    void
    process(struct kevent *ev, error *err)
    {
+      if ((ev->flags & EV_ERROR))
+      {
+         // So far have only seen this after a close() in which
+         // case ->udata is a stale pointer and we're safe to
+         // ignore.
+         //
+         return;
+      }
+
       auto obj = (pollster::event*)ev->udata;
 
       obj->signal_from_backend(err);
