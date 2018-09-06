@@ -98,6 +98,12 @@ create(
    error *err
 );
 
+void
+get_common_queue(
+   waiter **waiter,
+   error *err
+);
+
 } // end namespace
 
 #endif
