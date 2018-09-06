@@ -133,15 +133,16 @@ struct epoll_backend : public pollster::unix_backend
       if (nevents < 0)
          ERROR_SET(err, errno, errno);
 
+      cursor = events - 1;
+      last = events + nevents;
+
       if (timeoutInt >= 0)
       {
          timer.end_poll(err);
          ERROR_CHECK(err);
       }
 
-      for (cursor = events, last = events + nevents;
-           cursor < last;
-           cursor++)
+      for (++cursor; cursor < last; cursor++)
       {
          process(cursor, err);
          ERROR_CHECK(err);

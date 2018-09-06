@@ -182,7 +182,10 @@ struct kqueue_backend : public pollster::unix_backend
          timeout
       );
 
-      changelist.resize(0);      
+      changelist.resize(0);
+
+      cursor = events - 1;
+      last = events + nevents;
 
       if (timeoutInt >= 0)
       {
@@ -190,9 +193,7 @@ struct kqueue_backend : public pollster::unix_backend
          ERROR_CHECK(err);
       }
 
-      for (cursor = events, last = events + nevents;
-           cursor < last;
-           cursor++)
+      for (cursor++; cursor < last; cursor++)
       {
          process(cursor, err);
          ERROR_CHECK(err);
