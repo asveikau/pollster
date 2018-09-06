@@ -94,7 +94,7 @@ struct epoll_backend : public pollster::unix_backend
          if (ev->data.ptr != object)
             *dst++ = *ev;
       }
-      this->last = dst;
+      last = dst;
    }
 
    void

@@ -136,7 +136,7 @@ struct kqueue_backend : public pollster::unix_backend
          if (ev->udata != object)
             *dst++ = *ev;
       }
-      this->last = dst;
+      last = dst;
    }
 
    void
