@@ -73,6 +73,7 @@ pollster::timer::add(
    if (!r.Get())
       ERROR_SET(err, nomem);
 
+   r->thread_helper = thread_helper;
    r->repeat = repeating;
    r->totalMillis = millis;
    insert(r.Get(), err);
