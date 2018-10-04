@@ -10,7 +10,7 @@
 using namespace common;
 using namespace pollster;
 
-#if defined(_MSC_VER)
+#if defined(_WINDOWS)
 static
 std::mutex io_lock;
 #endif
@@ -95,7 +95,7 @@ main(int argc, char **argv)
       char buf[4096];
       int r;
 
-#if defined(_MSC_VER)
+#if defined(_WINDOWS)
       {std::lock_guard<std::mutex> lock(io_lock);
 #endif
       while (writeBuffer.size() && (r = send(fd, writeBuffer.data(), writeBuffer.size(), 0)) > 0)
@@ -107,7 +107,7 @@ main(int argc, char **argv)
             ERROR_CHECK(err);
          }
       }
-#if defined(_MSC_VER)
+#if defined(_WINDOWS)
       } // end lock guard
 #endif
 
@@ -123,7 +123,7 @@ main(int argc, char **argv)
    write_fn = [socket, &writeBuffer] (const void *buf, size_t len, error *err) -> void
    {
 #define exit innerExit
-#if defined(_MSC_VER)
+#if defined(_WINDOWS)
       std::lock_guard<std::mutex> lock(io_lock);
 #endif
       bool was_empty = !writeBuffer.size();
@@ -158,7 +158,7 @@ main(int argc, char **argv)
       gotStop = true;
    };
 
-#if !defined(_MSC_VER)
+#if !defined(_WINDOWS)
    waiter->add_socket(
       0,
       false,

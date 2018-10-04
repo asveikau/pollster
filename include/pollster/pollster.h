@@ -6,7 +6,7 @@
 
 #include <functional>
 
-#if !defined(_MSC_VER) && !defined(SOCKET_defined_)
+#if !defined(_WINDOWS) && !defined(SOCKET_defined_)
 typedef int SOCKET;
 #define SOCKET_defined_
 #endif

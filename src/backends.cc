@@ -19,7 +19,7 @@ pollster::create(waiter **w, error *err)
 #if defined(USE_POLL)
       {create_poll},
 #endif
-#if defined(_MSC_VER)
+#if defined(_WINDOWS)
       {create_win},
 #endif
       {nullptr}

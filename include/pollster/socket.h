@@ -1,7 +1,7 @@
 #ifndef pollster_socket_h_
 #define pollster_socket_h_
 
-#if defined(_MSC_VER)
+#if defined(_WINDOWS)
 
 #pragma comment(lib, "ws2_32.lib")
 
