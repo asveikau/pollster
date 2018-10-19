@@ -129,6 +129,44 @@ struct auto_reset_wrapper_base : public fd_wrapper_base, public pollster::auto_r
    }
 };
 
+class signal_block
+{
+   bool blocked;
+   sigset_t sigset, old;
+public:
+
+   signal_block() : blocked(false)
+   {
+      sigemptyset(&sigset);
+   }
+
+   signal_block(const signal_block &p) = delete;
+
+   void
+   block(int sig, error *err)
+   {
+      sigaddset(&sigset, sig);
+
+      if (pthread_sigmask(SIG_BLOCK, &sigset, &old))
+         ERROR_SET(err, errno, errno);
+
+      blocked = true;
+   exit:;
+   }
+
+   sigset_t *
+   get_sigset()
+   {
+      return &sigset;
+   }
+
+   ~signal_block()
+   {
+      if (blocked)
+         pthread_sigmask(SIG_SETMASK, &old, nullptr);
+   }
+};
+
 struct auto_reset_wrapper : public auto_reset_wrapper_base
 {
    int writefd;
@@ -188,16 +226,10 @@ struct auto_reset_wrapper : public auto_reset_wrapper_base
    {
       char ch = 0;
       int r = 0;
-      sigset_t sigset, old;
-      bool masked = false;
+      signal_block block;
 
-      sigemptyset(&sigset);
-      sigaddset(&sigset, SIGPIPE);
-
-      if (pthread_sigmask(SIG_BLOCK, &sigset, &old))
-         ERROR_SET(err, errno, errno);
-
-      masked = true;
+      block.block(SIGPIPE, err);
+      ERROR_CHECK(err);
 
       r = write(writefd, &ch, 1);
       if (r < 0)
@@ -210,12 +242,10 @@ struct auto_reset_wrapper : public auto_reset_wrapper_base
          int sig = 0;
          do
          {
-            if (sigwait(&sigset, &sig))
+            if (sigwait(block.get_sigset(), &sig))
                ERROR_SET(err, errno, errno);
          } while (sig != SIGPIPE);
       }
-      if (masked)
-         pthread_sigmask(SIG_SETMASK, &old, nullptr);
    }
 };
 
