@@ -190,7 +190,6 @@ struct auto_reset_wrapper : public auto_reset_wrapper_base
 
       on_signal_impl = [this] (error *err) -> void
       {
-#define exit innerExit
          int r = 0;
          char buf[64];
 
@@ -216,7 +215,6 @@ struct auto_reset_wrapper : public auto_reset_wrapper_base
          if (!repeat)
             remove(err); 
       exit:;
-#undef exit
       };
    exit:;
    }
@@ -263,7 +261,6 @@ struct eventfd_wrapper : public auto_reset_wrapper_base
 
       on_signal_impl = [this] (error *err) -> void
       {
-#define exit innerExit
          uint64_t i;
 
          while (read(fd, &i, sizeof(i)) == sizeof(i))
@@ -290,7 +287,6 @@ struct eventfd_wrapper : public auto_reset_wrapper_base
             ERROR_SET(err, errno, errno);
          }
       exit:;
-#undef exit
       };
    exit:;
    }

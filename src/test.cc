@@ -91,7 +91,6 @@ main(int argc, char **argv)
    socketWeak = socket.Get();
    socket->on_signal = [fd, socketWeak, &writeBuffer] (error *err) -> void
    {
-#define exit innerExit
       char buf[4096];
       int r;
 
@@ -117,12 +116,10 @@ main(int argc, char **argv)
          fflush(stdout);
       }
    exit:;
-#undef exit
    };
 
    write_fn = [socket, &writeBuffer] (const void *buf, size_t len, error *err) -> void
    {
-#define exit innerExit
 #if defined(_WINDOWS)
       std::lock_guard<std::mutex> lock(io_lock);
 #endif
@@ -143,7 +140,6 @@ main(int argc, char **argv)
          ERROR_CHECK(err);
       }
    exit:;
-#undef exit
    };
 
    waiter->add_auto_reset_signal(
@@ -169,7 +165,6 @@ main(int argc, char **argv)
 
    stdinEv->on_signal = [stop, write_fn] (error *err) -> void
    {
-#define exit innerExit
       char buf[4096];
       int r;
 
@@ -197,7 +192,6 @@ main(int argc, char **argv)
          }
       }
    exit:;
-#undef exit
    };
 #else
    {
