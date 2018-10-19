@@ -207,8 +207,12 @@ struct auto_reset_wrapper : public auto_reset_wrapper_base
    exit:
       if (err->source == ERROR_SRC_ERRNO && err->code == EPIPE)
       {
-         int sig = SIGPIPE;
-         sigwait(&sigset, &sig);
+         int sig = 0;
+         do
+         {
+            if (sigwait(&sigset, &sig))
+               ERROR_SET(err, errno, errno);
+         } while (sig != SIGPIPE);
       }
       if (masked)
          pthread_sigmask(SIG_SETMASK, &old, nullptr);
