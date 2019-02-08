@@ -1,3 +1,6 @@
+ifndef LIBPOLLSTER_INC
+LIBPOLLSTER_INC=y
+
 LIBCOMMON_ROOT?=$(LIBPOLLSTER_ROOT)../common/
 include $(LIBCOMMON_ROOT)Makefile.inc
 
@@ -47,3 +50,4 @@ $(LIBPOLLSTER): ${LIBPOLLSTER_OBJS}
 
 -include $(LIBPOLLSTER_ROOT)depend.mk
 
+endif
