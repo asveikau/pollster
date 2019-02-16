@@ -14,6 +14,11 @@ typedef int SOCKET;
 namespace pollster
 {
 
+// XXX
+#if defined (_WINDOWS)
+struct win_backend;
+#endif
+
 struct event : virtual public common::RefCountable
 {
    virtual void remove(error *err) = 0;
@@ -21,7 +26,15 @@ struct event : virtual public common::RefCountable
    bool writeable;
 
    std::function<void(error*)> on_signal;
+
+protected:
    std::function<void(error*)> on_signal_impl;
+
+   // XXX
+#if defined (_WINDOWS)
+   friend struct ::pollster::win_backend;
+#endif
+public:
 
    std::function<void(error*)> on_error;
 
