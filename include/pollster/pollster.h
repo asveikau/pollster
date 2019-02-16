@@ -19,15 +19,29 @@ namespace pollster
 struct win_backend;
 #endif
 
+// Basic event, i.e. signallable object such as a file descriptor.
+//
 struct event : virtual public common::RefCountable
 {
+   // Remove the event from its owning FD set.
+   //
    virtual void remove(error *err) = 0;
 
+   // Some subclasses will set to true to indicate that it's possible
+   // to signal this FD for write-readiness.
+   //
    bool writeable;
 
+   // Filled by caller.  Will be called when FD is signalled/ready.
+   //
    std::function<void(error*)> on_signal;
 
 protected:
+   // Internal version of on_signal().  Some backends and object types
+   // will call the public "on_signal", and then clear some backend state
+   // on the FD (eg. on Unix, draining a pipe on auto-reset events so they
+   // won't remain signalled on the next iteration.)
+   //
    std::function<void(error*)> on_signal_impl;
 
    // XXX
@@ -36,7 +50,13 @@ protected:
 #endif
 public:
 
+   // Called when there is an error processing this descriptor.
+   //
    std::function<void(error*)> on_error;
+
+   //
+   // The following should be called within a backend's exec() implementation.
+   //
 
    void
    signal_from_backend(error *err)
@@ -65,19 +85,41 @@ public:
    event() : writeable(false) {}
 };
 
+// Similar to Win32 events or Linux eventfd:
+// An object that can be either signalled or unsignalled, and will
+// return to the unsignalled state after being processed within the 
+// wait backend.
+//
 struct auto_reset_signal : virtual public event
 {
+   // Causes on_signal() to be called from waiter::exec().
+   //
    virtual void signal(error *err) = 0;
 };
 
+// Wraps a socket.
+//
 struct socket_event : virtual public event
 {
+   // Set to true to indicate we want to be woken for write-readiness,
+   // false otherwise.
+   //
    virtual void set_needs_write(bool b, error *err) = 0;
+
+   // Remove the association with the file descriptor, notably it won't
+   // be closed in the destructor.
+   //
    virtual void detach() = 0;
 };
 
+// Pure virtual base class for poll backend.
+//
 struct waiter : public common::RefCountable
 {
+   // Add a socket to the fd set.
+   // @write: Set to true if we currently want to poll for write availability.
+   // @ev:    Out parameter that receives the backend FD object.
+   //
    virtual void
    add_socket(
       SOCKET fd,
@@ -86,6 +128,10 @@ struct waiter : public common::RefCountable
       error *err
    ) = 0;
 
+   // Add an auto-reset event to the fd set.
+   // @repeating: Object stays in the wait backend after being signalled. Otherwise it is removed after processing.
+   // @ev:        Out parameter that receives the backend FD object.
+   //
    virtual void
    add_auto_reset_signal(
       bool repeating,
@@ -93,6 +139,11 @@ struct waiter : public common::RefCountable
       error *err
    ) = 0;
 
+   // Add an event that will be signalled after a delay.
+   // @millis:    Delay in milliseconds
+   // @repeating: Object stays in the wait backend after being signalled. Otherwise it is removed after processing.
+   // @ev:        Out parameter that receives the backend FD object.
+   //
    virtual void
    add_timer(
       uint64_t millis,
@@ -101,16 +152,25 @@ struct waiter : public common::RefCountable
       error *err
    ) = 0;
 
+   // Runs an iteration of the event loop.
+   // Careful about bouncing around in threads here!  Generally
+   // should be called from the same thread repeatedly.
+   //
    virtual void
    exec(error *err) = 0;
 };
 
+// Create a backend object.
+//
 void
 create(
    waiter **waiter,
    error *err
 );
 
+// Get a pooled worker thread, i.e. lazy-initialized global backend
+// instance.
+//
 void
 get_common_queue(
    waiter **waiter,
