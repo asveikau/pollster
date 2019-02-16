@@ -117,6 +117,9 @@ struct epoll_backend : public pollster::unix_backend
       auto timeoutInt = timer.next_timer();
       int timeout = -1;
 
+      if (!refCounts.size() && timeoutInt < 0)
+         ERROR_SET(err, unknown, "exec() called with empty fd set");
+
       base_exec(err);
       ERROR_CHECK(err);
 

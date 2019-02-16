@@ -160,6 +160,9 @@ struct kqueue_backend : public pollster::unix_backend
       struct timespec *timeout = nullptr;
       auto timeoutInt = timer.next_timer();
 
+      if (!refCounts.size() && timeoutInt < 0)
+         ERROR_SET(err, unknown, "exec() called with empty fd set");
+
       base_exec(err);
       ERROR_CHECK(err);
 

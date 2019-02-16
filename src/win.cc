@@ -579,6 +579,9 @@ pollster::wait_loop::exec(timer *optional_timer, error *err)
       }
    }
 
+   if (!nHandles && timeout == INFINITE)
+      ERROR_SET(err, unknown, "exec() called with empty fd set");
+
    result = WaitForMultipleObjects(
       nHandles,
       handles,
