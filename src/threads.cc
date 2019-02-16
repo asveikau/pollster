@@ -28,7 +28,7 @@ pollster::thread_helper::initialize(thread_helper_init *args, error *err)
             err
          );
 
-         ev->on_signal_impl = [this] (error *err) -> void
+         ev->on_signal = [this] (error *err) -> void
          {
             queue.drain(err);
          };
