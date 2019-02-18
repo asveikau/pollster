@@ -1,3 +1,11 @@
+/*
+ Copyright (C) 2018 Andrew Sveikauskas
+
+ Permission to use, copy, modify, and distribute this software for any
+ purpose with or without fee is hereby granted, provided that the above
+ copyright notice and this permission notice appear in all copies.
+*/
+
 #include <pollster/socket.h>
 #include <pollster/pollster.h>
 #include <common/logger.h>
