@@ -20,6 +20,12 @@
 #include <vector>
 #include <map>
 
+#if defined(__NetBSD__)
+#define UDATA_OBJ_CAST(X) ((intptr_t)(X))
+#else
+#define UDATA_OBJ_CAST(X) (X)
+#endif
+
 namespace {
 
 struct kqueue_backend : public pollster::unix_backend
@@ -49,7 +55,7 @@ struct kqueue_backend : public pollster::unix_backend
       //
       for (auto &p : changelist)
       {
-         if (p.udata == obj)
+         if (p.udata == UDATA_OBJ_CAST(obj))
             return &p;
       }
 
@@ -79,13 +85,13 @@ struct kqueue_backend : public pollster::unix_backend
       pollster::event *object
    )
    {
-      EV_SET(&ev[0], fd, EVFILT_READ, cmd, 0, 0, object);
+      EV_SET(&ev[0], fd, EVFILT_READ, cmd, 0, 0, UDATA_OBJ_CAST(object));
       if (object->writeable)
       {
          if (cmd != EV_DELETE)
             cmd |= (write ? EV_ENABLE : EV_DISABLE);
 
-         EV_SET(&ev[1], fd, EVFILT_WRITE, cmd, 0, 0, object);
+         EV_SET(&ev[1], fd, EVFILT_WRITE, cmd, 0, 0, UDATA_OBJ_CAST(object));
       }
    }
 
@@ -141,7 +147,7 @@ struct kqueue_backend : public pollster::unix_backend
       //
       for (ev = dst = cursor+1; ev < last; ++ev)
       {
-         if (ev->udata != object)
+         if (ev->udata != UDATA_OBJ_CAST(object))
             *dst++ = *ev;
       }
       last = dst;
