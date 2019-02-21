@@ -23,7 +23,7 @@ LIBPOLLSTER_SRC += \
    $(LIBPOLLSTER_ROOT)src/unix.cc
 endif
 
-ifneq (, $(filter $(PLATFORM),freebsd openbsd darwin))
+ifneq (, $(filter $(PLATFORM),freebsd openbsd netbsd darwin))
 LIBPOLLSTER_SRC += \
    $(LIBPOLLSTER_ROOT)src/kqueue.cc
 LIBPOLLSTER_CXXFLAGS += -DUSE_KQUEUE
