@@ -63,7 +63,6 @@ struct fd_wrapper_base : virtual public pollster::event
                [rcThis, q] (error *err) -> void
                {
                   q->remove_fd(rcThis->fd, rcThis.Get(), err);
-                  rcThis->closeFd();
                },
                err
             );
@@ -72,8 +71,6 @@ struct fd_wrapper_base : virtual public pollster::event
 
          q->remove_fd(fd, this, err);
       }
-
-      closeFd();
    }
 
    void
