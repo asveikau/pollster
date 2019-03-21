@@ -48,17 +48,15 @@ struct fd_wrapper_base : virtual public pollster::event
    void
    remove(error *err)
    {
-      Pointer<fd_wrapper_base> rcThis;
-
       auto q = p;
       p = nullptr;
 
       if (q && fd >= 0)
       {
-         rcThis = this;
-
          if (!q->thread_helper.on_owning_thread())
          {
+            Pointer<fd_wrapper_base> rcThis = this;
+
             q->thread_helper.enqueue_work(
                [rcThis, q] (error *err) -> void
                {
@@ -66,10 +64,11 @@ struct fd_wrapper_base : virtual public pollster::event
                },
                err
             );
-            return;
          }
-
-         q->remove_fd(fd, this, err);
+         else
+         {
+            q->remove_fd(fd, this, err);
+         }
       }
    }
 
