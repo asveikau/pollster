@@ -67,15 +67,6 @@ exit:;
 #include <common/error.h>
 #include <common/misc.h>
 
-#if !defined(SOCKET_defined_)
-typedef int SOCKET;
-#define SOCKET_defined_
-#endif
-
-#define INVALID_SOCKET (-1)
-
-#define closesocket close
-
 static INLINE
 void
 error_set_socket(error *err)
