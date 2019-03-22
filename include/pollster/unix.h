@@ -39,7 +39,7 @@ struct unix_backend : public waiter
 
    void
    add_socket(
-      int fd,
+      const std::shared_ptr<common::SocketHandle> &fd,
       bool write,
       socket_event **ev,
       error *err

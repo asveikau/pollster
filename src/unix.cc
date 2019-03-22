@@ -30,20 +30,9 @@ namespace {
 struct fd_wrapper_base : virtual public pollster::event
 {
    pollster::unix_backend *p;
-   int fd;
-   bool detached;
+   std::shared_ptr<FileHandle> fd;
 
-   fd_wrapper_base() : p(nullptr), fd(-1), detached(false) {}
-   ~fd_wrapper_base() { closeFd(); }
-
-   void
-   closeFd(void)
-   {
-      auto p = fd;
-      fd = -1;
-      if (p >= 0 && !detached)
-         close(p);
-   }
+   fd_wrapper_base() : p(nullptr) {}
 
    void
    remove(error *err)
@@ -60,22 +49,16 @@ struct fd_wrapper_base : virtual public pollster::event
             q->thread_helper.enqueue_work(
                [rcThis, q] (error *err) -> void
                {
-                  q->remove_fd(rcThis->fd, rcThis.Get(), err);
+                  q->remove_fd(rcThis->fd->Get(), rcThis.Get(), err);
                },
                err
             );
          }
          else
          {
-            q->remove_fd(fd, this, err);
+            q->remove_fd(fd->Get(), this, err);
          }
       }
-   }
-
-   void
-   detach()
-   {
-      detached = true;
    }
 };
 
@@ -109,14 +92,8 @@ struct socket_wrapper : public fd_wrapper_base, public pollster::socket_event
             return;
          }
 
-         p->set_write(fd, write, this, err);
+         p->set_write(fd->Get(), write, this, err);
       }
-   }
-
-   void
-   detach()
-   {
-      fd_wrapper_base::detach();      
    }
 };
 
@@ -173,23 +150,29 @@ public:
 
 struct auto_reset_wrapper : public auto_reset_wrapper_base
 {
-   int writefd;
-
-   auto_reset_wrapper() : writefd(-1) {}
-   ~auto_reset_wrapper() { if (writefd >= 0) close(writefd);}
+   FileHandle writefd;
 
    void
    create(error *err)
    {
       int p[2];
 
+      try
+      {
+         fd = std::make_shared<FileHandle>();
+      }
+      catch (std::bad_alloc)
+      {
+         ERROR_SET(err, nomem);
+      }
+
       if (pipe(p))
          ERROR_SET(err, errno, errno);
 
       writefd = p[1];
-      fd = p[0];
+      *fd = p[0];
 
-      if (fcntl(fd, F_SETFL, O_NONBLOCK, 1))
+      if (fcntl(fd->Get(), F_SETFL, O_NONBLOCK, 1))
          ERROR_SET(err, errno, errno);
 
       on_signal_impl = [this] (error *err) -> void
@@ -197,7 +180,7 @@ struct auto_reset_wrapper : public auto_reset_wrapper_base
          int r = 0;
          char buf[64];
 
-         while ((r = read(fd, buf, sizeof(buf))) > 0);
+         while ((r = read(fd->Get(), buf, sizeof(buf))) > 0);
 
          if (r < 0)
          {
@@ -233,7 +216,7 @@ struct auto_reset_wrapper : public auto_reset_wrapper_base
       block.block(SIGPIPE, err);
       ERROR_CHECK(err);
 
-      r = write(writefd, &ch, 1);
+      r = write(writefd.Get(), &ch, 1);
       if (r < 0)
          ERROR_SET(err, errno, errno);
       if (r != 1)
@@ -257,17 +240,25 @@ struct eventfd_wrapper : public auto_reset_wrapper_base
    void
    create(error *err)
    {
-      fd = eventfd(0, 0);
-      if (fd < 0)
+      try
+      {
+         fd = std::make_shared<FileHandle>();
+      }
+      catch (std::bad_alloc)
+      {
+         ERROR_SET(err, nomem);
+      }
+      *fd = eventfd(0, 0);
+      if (!fd->Valid())
          ERROR_SET(err, errno, errno);
-      if (fcntl(fd, F_SETFL, O_NONBLOCK))
+      if (fcntl(fd->Get(), F_SETFL, O_NONBLOCK))
          ERROR_SET(err, errno, errno);
 
       on_signal_impl = [this] (error *err) -> void
       {
          uint64_t i;
 
-         while (read(fd, &i, sizeof(i)) == sizeof(i))
+         while (read(fd->Get(), &i, sizeof(i)) == sizeof(i))
          {
             if (on_signal)
             {
@@ -299,7 +290,7 @@ struct eventfd_wrapper : public auto_reset_wrapper_base
    signal(error *err)
    {
       uint64_t i = 1;
-      if (write(fd, &i, sizeof(i)) != sizeof(i))
+      if (write(fd->Get(), &i, sizeof(i)) != sizeof(i))
          ERROR_SET(err, errno, errno);
    exit:;
    }
@@ -315,7 +306,7 @@ pollster::unix_backend::unix_backend()
 
 void
 pollster::unix_backend::add_socket(
-   int fd,
+   const std::shared_ptr<common::SocketHandle> &fd,
    bool write,
    socket_event **ev,
    error *err
@@ -326,7 +317,7 @@ pollster::unix_backend::add_socket(
    New(e.GetAddressOf(), err);
    ERROR_CHECK(err);
 
-   base_add_fd(fd, write, e.Get(), err);
+   base_add_fd(fd->Get(), write, e.Get(), err);
    ERROR_CHECK(err);
 
    e->p = this;
@@ -376,7 +367,7 @@ pollster::unix_backend::add_auto_reset_signal(
    try_create_auto_reset<auto_reset_wrapper>(e.GetAddressOf(), err);
    ERROR_CHECK(err);
 
-   base_add_fd(e->fd, false, e.Get(), err);
+   base_add_fd(e->fd->Get(), false, e.Get(), err);
    ERROR_CHECK(err);
 
    e->p = this;

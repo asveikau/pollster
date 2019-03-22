@@ -10,14 +10,11 @@
 #define pollster_pollster_h
 
 #include <common/c++/refcount.h>
+#include <common/c++/handle.h>
 #include <common/error.h>
 
 #include <functional>
-
-#if !defined(_WINDOWS) && !defined(SOCKET_defined_)
-typedef int SOCKET;
-#define SOCKET_defined_
-#endif
+#include <memory>
 
 namespace pollster
 {
@@ -113,11 +110,6 @@ struct socket_event : virtual public event
    // false otherwise.
    //
    virtual void set_needs_write(bool b, error *err) = 0;
-
-   // Remove the association with the file descriptor, notably it won't
-   // be closed in the destructor.
-   //
-   virtual void detach() = 0;
 };
 
 // Pure virtual base class for poll backend.
@@ -130,7 +122,7 @@ struct waiter : public common::RefCountable
    //
    virtual void
    add_socket(
-      SOCKET fd,
+      const std::shared_ptr<common::SocketHandle> &fd,
       bool write,
       socket_event **ev,
       error *err

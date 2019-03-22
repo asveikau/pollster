@@ -102,7 +102,7 @@ struct win_backend : public waiter
 
    void
    add_socket(
-      SOCKET fd,
+      const std::shared_ptr<common::SocketHandle> &fd,
       bool write,
       socket_event **ev,
       error *err

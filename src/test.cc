@@ -23,13 +23,13 @@ static
 std::mutex io_lock;
 #endif
 
-static int
+static std::shared_ptr<common::SocketHandle>
 create_socket(const char *host, const char *service, error *err)
 {
    struct addrinfo hint = {0};
    struct addrinfo *addrs = nullptr;
    int r = 0;
-   SOCKET fd = INVALID_SOCKET;
+   auto fd = std::make_shared<common::SocketHandle>();
 
    hint.ai_socktype = SOCK_STREAM;
 
@@ -40,23 +40,20 @@ create_socket(const char *host, const char *service, error *err)
    if (r)
       ERROR_SET(err, unknown, gai_strerror(r));
 
-   fd = socket(addrs->ai_family, addrs->ai_socktype, addrs->ai_protocol);
-   if (fd == INVALID_SOCKET)
+   *fd = socket(addrs->ai_family, addrs->ai_socktype, addrs->ai_protocol);
+   if (!fd->Valid())
       ERROR_SET(err, socket);
 
-   if (connect(fd, addrs->ai_addr, addrs->ai_addrlen))
+   if (connect(fd->Get(), addrs->ai_addr, addrs->ai_addrlen))
       ERROR_SET(err, socket);
 
-   set_nonblock(fd, true, err);
+   set_nonblock(fd->Get(), true, err);
    ERROR_CHECK(err);
 
 exit:
    if (addrs) freeaddrinfo(addrs);
-   if (ERROR_FAILED(err) && fd >= 0)
-   {
-      closesocket(fd);
-      fd = INVALID_SOCKET;
-   }
+   if (ERROR_FAILED(err))
+      fd->Reset();
    return fd;
 }
 
@@ -71,7 +68,7 @@ main(int argc, char **argv)
    std::vector<char> writeBuffer;
    std::function<void(const void*, size_t, error *)> write_fn;
    bool gotStop = false;
-   SOCKET fd =INVALID_SOCKET;
+   std::shared_ptr<common::SocketHandle> fd;
    error err;
 
    log_register_callback(
@@ -105,7 +102,7 @@ main(int argc, char **argv)
 #if defined(_WINDOWS)
       {std::lock_guard<std::mutex> lock(io_lock);
 #endif
-      while (writeBuffer.size() && (r = send(fd, writeBuffer.data(), writeBuffer.size(), 0)) > 0)
+      while (writeBuffer.size() && (r = send(fd->Get(), writeBuffer.data(), writeBuffer.size(), 0)) > 0)
       {
          writeBuffer.erase(writeBuffer.begin(), writeBuffer.begin() + r);
          if (!writeBuffer.size())
@@ -118,7 +115,7 @@ main(int argc, char **argv)
       } // end lock guard
 #endif
 
-      while ((r = recv(fd, buf, sizeof(buf), 0)) > 0)
+      while ((r = recv(fd->Get(), buf, sizeof(buf), 0)) > 0)
       {
          fwrite(buf, 1, r, stdout);
          fflush(stdout);
@@ -164,7 +161,7 @@ main(int argc, char **argv)
 
 #if !defined(_WINDOWS)
    waiter->add_socket(
-      0,
+      std::make_shared<common::FileHandle>(0),
       false,
       stdinEv.GetAddressOf(),
       &err

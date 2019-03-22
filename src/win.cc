@@ -22,14 +22,9 @@ namespace pollster { namespace windows {
 struct handle_wrapper_base : virtual public pollster::event
 {
    pollster::wait_loop *loop;
-   HANDLE handle;
+   common::FileHandle handle;
 
-   handle_wrapper_base() : loop(nullptr), handle(INVALID_HANDLE_VALUE) {}
-   ~handle_wrapper_base()
-   {
-      if (handle && handle != INVALID_HANDLE_VALUE)
-         CloseHandle(handle);
-   }
+   handle_wrapper_base() : loop(nullptr) {}
 
    void
    remove(error *err)
@@ -40,7 +35,7 @@ struct handle_wrapper_base : virtual public pollster::event
       if (p)
       {
          if (p->threadHelper.on_owning_thread())
-            p->remove_handle(handle);
+            p->remove_handle(handle.Get());
          else
          {
             Pointer<handle_wrapper_base> rcThis = this;
@@ -48,7 +43,7 @@ struct handle_wrapper_base : virtual public pollster::event
             p->threadHelper.enqueue_work(
                [rcThis, p] (error *err) -> void
                {
-                  p->remove_handle(rcThis->handle);
+                  p->remove_handle(rcThis->handle.Get());
                },
                err
             );
@@ -59,29 +54,22 @@ struct handle_wrapper_base : virtual public pollster::event
 
 struct socket_wrapper : public handle_wrapper_base, public pollster::socket_event
 {
-   SOCKET fd;
+   std::shared_ptr<common::SocketHandle> fd;
 
-   socket_wrapper() : fd(INVALID_SOCKET) { writeable = true; }
-   ~socket_wrapper() { if (fd != INVALID_SOCKET) closesocket(fd); }
+   socket_wrapper() { writeable = true; }
 
    void
-   create(SOCKET fd, bool write, error *err)
+   create(const std::shared_ptr<common::SocketHandle> &fd, bool write, error *err)
    {
       this->fd = fd;
 
       handle = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-      if (!handle)
+      if (!handle.Valid())
          ERROR_SET(err, win32, GetLastError());
 
       set_needs_write(write, err);
       ERROR_CHECK(err);
    exit:;
-   }
-
-   void
-   detach()
-   {
-      fd = INVALID_SOCKET;
    }
 
    void
@@ -96,7 +84,7 @@ struct socket_wrapper : public handle_wrapper_base, public pollster::socket_even
       const long basicEvents =
          FD_READ | FD_OOB | FD_ACCEPT | FD_CONNECT | FD_CLOSE;
 
-      if (WSAEventSelect(fd, handle, basicEvents | (write ? FD_WRITE : 0)))
+      if (WSAEventSelect(fd->Get(), handle.Get(), basicEvents | (write ? FD_WRITE : 0)))
          ERROR_SET(err, win32, GetLastError());
    exit:;
    }
@@ -114,7 +102,7 @@ struct auto_reset_wrapper : public handle_wrapper_base, public pollster::auto_re
    create(error *err)
    {
       handle = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-      if (!handle)
+      if (!handle.Valid())
          ERROR_SET(err, win32, GetLastError());
    exit:;
    }
@@ -122,7 +110,7 @@ struct auto_reset_wrapper : public handle_wrapper_base, public pollster::auto_re
    void
    signal(error *err)
    {
-      if (!SetEvent(handle))
+      if (!SetEvent(handle.Get()))
          ERROR_SET(err, win32, GetLastError());
    exit:;
    }
@@ -243,7 +231,7 @@ exit:;
 
 void
 pollster::win_backend::add_socket(
-   SOCKET fd,
+   const std::shared_ptr<common::SocketHandle> &fd,
    bool write,
    socket_event **ev,
    error *err
@@ -257,7 +245,7 @@ pollster::win_backend::add_socket(
    e->create(fd, write, err);
    ERROR_CHECK(err);
 
-   add(e->handle, e.Get(), err);
+   add(e->handle.Get(), e.Get(), err);
    ERROR_CHECK(err);
 
 exit:
@@ -280,7 +268,7 @@ pollster::win_backend::add_auto_reset_signal(
    e->create(err);
    ERROR_CHECK(err);
 
-   add(e->handle, e.Get(), err);
+   add(e->handle.Get(), e.Get(), err);
    ERROR_CHECK(err);
 
    if (!repeating)
