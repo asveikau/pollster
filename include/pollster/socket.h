@@ -1,5 +1,5 @@
 /*
- Copyright (C) 2018 Andrew Sveikauskas
+ Copyright (C) 2018-2019 Andrew Sveikauskas
 
  Permission to use, copy, modify, and distribute this software for any
  purpose with or without fee is hereby granted, provided that the above
@@ -8,6 +8,8 @@
 
 #ifndef pollster_socket_h_
 #define pollster_socket_h_
+
+#include <functional>
 
 #if defined(_WINDOWS)
 
@@ -86,5 +88,22 @@ exit:;
 #define socket_startup(...) ((void)0)
 
 #endif
+
+namespace pollster
+{
+
+void
+error_set_gai(error *err, int r);
+
+void
+GetAddrInfoAsync(
+   const char *host,
+   const char *service,
+   struct addrinfo *hint,
+   std::function<void(struct addrinfo *, error *)> onResult,
+   std::function<void(error *)> onError
+);
+
+} // end namespace
 
 #endif
