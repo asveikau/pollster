@@ -33,6 +33,12 @@ ifeq ($(PLATFORM),linux)
 LIBPOLLSTER_SRC += \
    $(LIBPOLLSTER_ROOT)src/epoll.cc
 LIBPOLLSTER_CXXFLAGS += -DUSE_EPOLL
+
+GLIBC_MAJOR_TEST:=$(shell $(CC) -E -dM -include stdio.h - < /dev/null|grep ' __GLIBC__ ' | cut -d ' ' -f 3)
+ifneq ($(GLIBC_MAJOR_TEST),)
+GLIBC_MAJOR:=$(GLIBC_MAJOR_TEST)
+GLIBC_MINOR:=$(shell $(CC) -E -dM -include stdio.h - < /dev/null|grep ' __GLIBC_MINOR__ ' | cut -d ' ' -f 3)
+endif
 endif
 
 ifneq ($(PLATFORM), windows)
