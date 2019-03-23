@@ -23,6 +23,8 @@ struct State : public common::RefCountable
    struct gaicb cb;
    struct addrinfo hint;
    void *onHeap;
+   std::function<void(struct addrinfo *, error *err)> onResult;
+   std::function<void(error *)> onError;
 
    State() : onHeap(nullptr)
    {
@@ -67,6 +69,16 @@ pollster::GetAddrInfoAsync(
    New(state, &err);
    ERROR_CHECK(&err);
 
+   try
+   {
+      state->onResult = std::move(onResult);
+      state->onError = onError;
+   }
+   catch (std::bad_alloc)
+   {
+      ERROR_SET(&err, nomem);
+   }
+
    state->onHeap = malloc(n);
    if (!state->onHeap)
       ERROR_SET(&err, nomem);
@@ -91,6 +103,19 @@ pollster::GetAddrInfoAsync(
    sev.sigev_notify_function = [] (union sigval val) -> void
    {
       State *state = (State*)val.sival_ptr;
+      error err;
+      int r = 0;
+
+      r = gai_error(&state->cb);
+      if (r)
+         ERROR_SET(&err, gai, r);
+
+      state->onResult(state->cb.ar_result, &err);
+      ERROR_CHECK(&err);
+
+   exit:
+      if (ERROR_FAILED(&err) && state->onError)
+         state->onError(&err);
       state->Release();
    };
 
