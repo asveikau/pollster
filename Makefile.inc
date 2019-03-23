@@ -11,6 +11,7 @@ LIBPOLLSTER_CXXFLAGS += -I$(LIBPOLLSTER_ROOT)include
 LIBPOLLSTER_SRC += \
    $(LIBPOLLSTER_ROOT)src/backends.cc \
    $(LIBPOLLSTER_ROOT)src/commonqueue.cc \
+   $(LIBPOLLSTER_ROOT)src/error-gai.cc \
    $(LIBPOLLSTER_ROOT)src/threads.cc \
    $(LIBPOLLSTER_ROOT)src/timer.cc \
    $(LIBPOLLSTER_ROOT)src/messagequeue.cc
