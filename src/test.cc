@@ -23,150 +23,24 @@ static
 std::mutex io_lock;
 #endif
 
-static std::shared_ptr<common::SocketHandle>
-create_socket(const char *host, const char *service, error *err)
+static void
+add_stdin(
+   Pointer<waiter> waiter,
+   Pointer<auto_reset_signal> stop,
+   std::function<void(const void*, size_t, error *)> write_fn,
+   error *err
+)
 {
-   struct addrinfo hint = {0};
-   struct addrinfo *addrs = nullptr;
-   int r = 0;
-   auto fd = std::make_shared<common::SocketHandle>();
-
-   hint.ai_socktype = SOCK_STREAM;
-
-   socket_startup(err);
-   ERROR_CHECK(err);
-
-   r = getaddrinfo(host, service, &hint, &addrs);
-   if (r)
-      ERROR_SET(err, unknown, gai_strerror(r));
-
-   *fd = socket(addrs->ai_family, addrs->ai_socktype, addrs->ai_protocol);
-   if (!fd->Valid())
-      ERROR_SET(err, socket);
-
-   if (connect(fd->Get(), addrs->ai_addr, addrs->ai_addrlen))
-      ERROR_SET(err, socket);
-
-   set_nonblock(fd->Get(), true, err);
-   ERROR_CHECK(err);
-
-exit:
-   if (addrs) freeaddrinfo(addrs);
-   if (ERROR_FAILED(err))
-      fd->Reset();
-   return fd;
-}
-
-int
-main(int argc, char **argv)
-{
-   Pointer<waiter> waiter;
-   Pointer<auto_reset_signal> stop;
    Pointer<socket_event> stdinEv;
-   Pointer<socket_event> socket;
-   socket_event *socketWeak = nullptr;
-   std::vector<char> writeBuffer;
-   std::function<void(const void*, size_t, error *)> write_fn;
-   bool gotStop = false;
-   std::shared_ptr<common::SocketHandle> fd;
-   error err;
-
-   log_register_callback(
-      [] (void *np, const char *p) -> void { fputs(p, stderr); },
-      nullptr
-   );
-
-   if (argc < 2)
-      ERROR_SET(&err, unknown, "usage: test host port");
-
-   create(waiter.GetAddressOf(), &err);
-   ERROR_CHECK(&err);
-
-   fd = create_socket(argv[1], argv[2], &err);
-   ERROR_CHECK(&err);
-
-   waiter->add_socket(
-      fd,
-      false,
-      socket.GetAddressOf(),
-      &err
-   );
-   ERROR_CHECK(&err);
-
-   socketWeak = socket.Get();
-   socket->on_signal = [fd, socketWeak, &writeBuffer] (error *err) -> void
-   {
-      char buf[4096];
-      int r;
-
-#if defined(_WINDOWS)
-      {std::lock_guard<std::mutex> lock(io_lock);
-#endif
-      while (writeBuffer.size() && (r = send(fd->Get(), writeBuffer.data(), writeBuffer.size(), 0)) > 0)
-      {
-         writeBuffer.erase(writeBuffer.begin(), writeBuffer.begin() + r);
-         if (!writeBuffer.size())
-         {
-            socketWeak->set_needs_write(false, err);
-            ERROR_CHECK(err);
-         }
-      }
-#if defined(_WINDOWS)
-      } // end lock guard
-#endif
-
-      while ((r = recv(fd->Get(), buf, sizeof(buf), 0)) > 0)
-      {
-         fwrite(buf, 1, r, stdout);
-         fflush(stdout);
-      }
-   exit:;
-   };
-
-   write_fn = [socket, &writeBuffer] (const void *buf, size_t len, error *err) -> void
-   {
-#if defined(_WINDOWS)
-      std::lock_guard<std::mutex> lock(io_lock);
-#endif
-      bool was_empty = !writeBuffer.size();
-
-      try
-      {
-         writeBuffer.insert(writeBuffer.end(), (const char*)buf, (const char*)buf+len);
-      }
-      catch (std::bad_alloc)
-      {
-         ERROR_SET(err, nomem);
-      }
-
-      if (was_empty)
-      {
-         socket->set_needs_write(true, err);
-         ERROR_CHECK(err);
-      }
-   exit:;
-   };
-
-   waiter->add_auto_reset_signal(
-      false,
-      stop.GetAddressOf(),
-      &err
-   );
-   ERROR_CHECK(&err);
-
-   stop->on_signal = [&gotStop] (error *err) -> void
-   {
-      gotStop = true;
-   };
 
 #if !defined(_WINDOWS)
    waiter->add_socket(
       std::make_shared<common::FileHandle>(0),
       false,
       stdinEv.GetAddressOf(),
-      &err
+      err
    );
-   ERROR_CHECK(&err);
+   ERROR_CHECK(err);
 
    stdinEv->on_signal = [stop, write_fn] (error *err) -> void
    {
@@ -241,12 +115,163 @@ main(int argc, char **argv)
             stop->signal(&err);
          },
          &id,
-         &err
+         err
       );
-      ERROR_CHECK(&err);
+      ERROR_CHECK(err);
       detach_thread(&id);
    }
 #endif
+exit:;
+}
+
+static void
+add_socket(
+   Pointer<waiter> waiter,
+   std::shared_ptr<common::SocketHandle> fd,
+   Pointer<auto_reset_signal> stop,
+   error *err
+)
+{
+   Pointer<socket_event> socket;
+   socket_event *socketWeak = nullptr;
+   auto writeBuffer = std::make_shared<std::vector<char>>();
+   std::function<void(const void*, size_t, error *)> write_fn;
+
+   waiter->add_socket(
+      fd,
+      false,
+      socket.GetAddressOf(),
+      err
+   );
+   ERROR_CHECK(err);
+
+   socketWeak = socket.Get();
+   socket->on_signal = [fd, socketWeak, writeBuffer] (error *err) -> void
+   {
+      char buf[4096];
+      int r;
+
+#if defined(_WINDOWS)
+      {std::lock_guard<std::mutex> lock(io_lock);
+#endif
+      while (writeBuffer->size() && (r = send(fd->Get(), writeBuffer->data(), writeBuffer->size(), 0)) > 0)
+      {
+         writeBuffer->erase(writeBuffer->begin(), writeBuffer->begin() + r);
+         if (!writeBuffer->size())
+         {
+            socketWeak->set_needs_write(false, err);
+            ERROR_CHECK(err);
+         }
+      }
+#if defined(_WINDOWS)
+      } // end lock guard
+#endif
+
+      while ((r = recv(fd->Get(), buf, sizeof(buf), 0)) > 0)
+      {
+         fwrite(buf, 1, r, stdout);
+         fflush(stdout);
+      }
+   exit:;
+   };
+
+   write_fn = [socket, writeBuffer] (const void *buf, size_t len, error *err) -> void
+   {
+#if defined(_WINDOWS)
+      std::lock_guard<std::mutex> lock(io_lock);
+#endif
+      bool was_empty = !writeBuffer->size();
+
+      try
+      {
+         writeBuffer->insert(writeBuffer->end(), (const char*)buf, (const char*)buf+len);
+      }
+      catch (std::bad_alloc)
+      {
+         ERROR_SET(err, nomem);
+      }
+
+      if (was_empty)
+      {
+         socket->set_needs_write(true, err);
+         ERROR_CHECK(err);
+      }
+   exit:;
+   };
+
+   add_stdin(waiter, stop, write_fn, err);
+   ERROR_CHECK(err);
+exit:;
+}
+
+int
+main(int argc, char **argv)
+{
+   Pointer<waiter> waiter;
+   Pointer<auto_reset_signal> stop;
+   std::function<void(error*)> onError;
+   bool gotStop = false;
+   error err;
+
+   struct addrinfo hint = {0};
+   hint.ai_socktype = SOCK_STREAM;
+
+   log_register_callback(
+      [] (void *np, const char *p) -> void { fputs(p, stderr); },
+      nullptr
+   );
+
+   if (argc < 2)
+      ERROR_SET(&err, unknown, "usage: test host port");
+
+   create(waiter.GetAddressOf(), &err);
+   ERROR_CHECK(&err);
+
+   waiter->add_auto_reset_signal(
+      false,
+      stop.GetAddressOf(),
+      &err
+   );
+   ERROR_CHECK(&err);
+
+   stop->on_signal = [&gotStop] (error *err) -> void
+   {
+      gotStop = true;
+   };
+
+   socket_startup(&err);
+   ERROR_CHECK(&err);
+
+   onError = [stop] (error *err) -> void
+   {
+      error_clear(err);
+      stop->signal(err);
+   };
+
+   GetAddrInfoAsync(
+      argv[1],
+      argv[2],
+      &hint,
+      [waiter, stop] (struct addrinfo *info, error *err) -> void
+      {
+         auto fd = std::make_shared<common::SocketHandle>();
+
+         *fd = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
+         if (!fd->Valid())
+            ERROR_SET(err, socket);
+
+         if (connect(fd->Get(), info->ai_addr, info->ai_addrlen))
+            ERROR_SET(err, socket);
+
+         set_nonblock(fd->Get(), true, err);
+         ERROR_CHECK(err);
+
+         add_socket(waiter, fd, stop, err);
+         ERROR_CHECK(err);
+      exit:;
+      },
+      onError
+   );
 
    while (!gotStop)
    {
