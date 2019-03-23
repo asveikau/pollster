@@ -45,7 +45,7 @@ ifdef GLIBC_MAJOR
 ifeq ($(shell perl $(LIBPOLLSTER_ROOT)scripts/version-check.pl $(GLIBC_MAJOR).$(GLIBC_MINOR) 2.8), 1)
 LIBPOLLSTER_SRC += \
    $(LIBPOLLSTER_ROOT)src/getaddrinfo-a.cc
-
+LDFLAGS += -lanl
 HAS_GAI_IMPL:=y
 endif
 endif
