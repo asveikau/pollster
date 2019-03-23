@@ -35,11 +35,21 @@ LIBPOLLSTER_SRC += \
    $(LIBPOLLSTER_ROOT)src/epoll.cc
 LIBPOLLSTER_CXXFLAGS += -DUSE_EPOLL
 
-GLIBC_MAJOR_TEST:=$(shell $(CC) -E -dM -include stdio.h - < /dev/null|grep ' __GLIBC__ ' | cut -d ' ' -f 3)
+GLIBC_MAJOR_TEST:=$(shell $(CC) -E -dM -include stdio.h - < /dev/null|grep '\#define __GLIBC__ ' | cut -d ' ' -f 3)
 ifneq ($(GLIBC_MAJOR_TEST),)
 GLIBC_MAJOR:=$(GLIBC_MAJOR_TEST)
-GLIBC_MINOR:=$(shell $(CC) -E -dM -include stdio.h - < /dev/null|grep ' __GLIBC_MINOR__ ' | cut -d ' ' -f 3)
+GLIBC_MINOR:=$(shell $(CC) -E -dM -include stdio.h - < /dev/null|grep '\#define __GLIBC_MINOR__ ' | cut -d ' ' -f 3)
 endif
+
+ifdef GLIBC_MAJOR
+ifeq ($(shell perl $(LIBPOLLSTER_ROOT)scripts/version-check.pl $(GLIBC_MAJOR).$(GLIBC_MINOR) 2.8), 1)
+LIBPOLLSTER_SRC += \
+   $(LIBPOLLSTER_ROOT)src/getaddrinfo-a.cc
+
+HAS_GAI_IMPL:=y
+endif
+endif
+
 endif
 
 ifneq ($(PLATFORM), windows)
