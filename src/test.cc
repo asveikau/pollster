@@ -213,9 +213,6 @@ main(int argc, char **argv)
    bool gotStop = false;
    error err;
 
-   struct addrinfo hint = {0};
-   hint.ai_socktype = SOCK_STREAM;
-
    log_register_callback(
       [] (void *np, const char *p) -> void { fputs(p, stderr); },
       nullptr
@@ -248,24 +245,12 @@ main(int argc, char **argv)
       stop->signal(err);
    };
 
-   GetAddrInfoAsync(
+   pollster::ConnectAsync(
       argv[1],
       argv[2],
-      &hint,
-      [waiter, stop] (struct addrinfo *info, error *err) -> void
+      [] (pollster::ConnectAsyncStatus state, const char *arg, error *err) -> void {},
+      [waiter, stop] (const std::shared_ptr<common::SocketHandle> &fd, error *err) -> void
       {
-         auto fd = std::make_shared<common::SocketHandle>();
-
-         *fd = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
-         if (!fd->Valid())
-            ERROR_SET(err, socket);
-
-         if (connect(fd->Get(), info->ai_addr, info->ai_addrlen))
-            ERROR_SET(err, socket);
-
-         set_nonblock(fd->Get(), true, err);
-         ERROR_CHECK(err);
-
          add_socket(waiter, fd, stop, err);
          ERROR_CHECK(err);
       exit:;

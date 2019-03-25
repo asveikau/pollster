@@ -89,6 +89,8 @@ exit:;
 
 #endif
 
+#include <common/c++/handle.h>
+
 namespace pollster
 {
 
@@ -101,6 +103,21 @@ GetAddrInfoAsync(
    const char *service,
    struct addrinfo *hint,
    std::function<void(struct addrinfo *, error *)> onResult,
+   std::function<void(error *)> onError
+);
+
+enum ConnectAsyncStatus
+{
+   HostLookup,
+   Connect,
+};
+
+void
+ConnectAsync(
+   const char *host,
+   const char *service,
+   std::function<void(ConnectAsyncStatus, const char *, error *)> onProgress,
+   std::function<void(const std::shared_ptr<common::SocketHandle>, error *)> onResult,
    std::function<void(error *)> onError
 );
 
