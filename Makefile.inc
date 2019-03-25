@@ -54,6 +54,16 @@ endif
 
 endif
 
+ifeq ($(PLATFORM), sun)
+SUNOS_VERSION:=$(shell uname -r)
+ifeq ($(shell $(VERSION_CHECK) $(SUNOS_VERSION) 5.10), 1)
+# port_create() is available
+else
+ifeq ($(shell $(VERSION_CHECK) $(SUNOS_VERSION) 5.8), 1)
+# /dev/poll is available
+endif
+endif
+
 ifneq ($(PLATFORM), windows)
 LIBPOLLSTER_SRC += \
    $(LIBPOLLSTER_ROOT)src/poll.cc
