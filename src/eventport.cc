@@ -133,9 +133,6 @@ struct event_port_backend : public pollster::unix_backend
       struct timespec *tsp = nullptr;
       uint_t n = 0;
 
-      if (!objects.size() && timeoutInt < 0)
-         ERROR_SET(err, unknown, "exec() called with empty fd set");
-
       base_exec(err);
       ERROR_CHECK(err);
 
@@ -207,6 +204,63 @@ struct event_port_backend : public pollster::unix_backend
       }
       first = last = nullptr;
    exit:;
+   }
+
+   struct auto_reset : public pollster::auto_reset_signal
+   {
+      std::shared_ptr<common::FileHandle> port;
+      bool repeat;
+
+      auto_reset()
+      {
+         on_signal_impl = [this] (error *err) -> void { on_signal(err); Release(); };
+      }
+
+      void
+      remove(error *err)
+      {
+         port = nullptr;
+      }
+
+      void
+      signal(error *err)
+      {
+         if (!port.get())
+            goto exit;
+
+         if (port_send(port->Get(), 1, this))
+            ERROR_SET(err, errno, errno);
+
+         AddRef();
+
+         if (!repeat)
+         {
+            remove(err);
+            ERROR_CHECK(err);
+         }
+      exit:;
+      }
+   };
+
+   void
+   add_auto_reset_signal(
+      bool repeating,
+      pollster::auto_reset_signal **ev,
+      error *err
+   )
+   {
+      common::Pointer<auto_reset> r;
+
+      common::New(r, err);
+      ERROR_CHECK(err);
+
+      r->port = port;
+      r->repeat = repeating;
+
+   exit:
+      if (ERROR_FAILED(err))
+         r = nullptr;
+      *ev = r.Detach();
    }
 
 };
