@@ -6,6 +6,12 @@
  copyright notice and this permission notice appear in all copies.
 */
 
+//
+// This is the backend using known-inefficient poll(2), which is provided
+// not because it's a super-great API, but as a lowest common denominator
+// for portability.
+//
+
 #include <pollster/unix.h>
 #include <pollster/backends.h>
 #include <common/misc.h>
