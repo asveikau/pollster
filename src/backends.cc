@@ -24,6 +24,9 @@ pollster::create(waiter **w, error *err)
 #if defined(USE_EPOLL)
       {create_epoll},
 #endif
+#if defined(USE_EVENT_PORT)
+      {create_event_port},
+#endif
 #if defined(USE_DEV_POLL)
       {create_dev_poll},
 #endif

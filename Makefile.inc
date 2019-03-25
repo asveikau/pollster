@@ -65,7 +65,9 @@ endif # Solaris 8
 endif # Solaris
 
 ifdef HAVE_EVENT_PORT
-# port_create() is available
+LIBPOLLSTER_SRC += \
+   $(LIBPOLLSTER_ROOT)src/eventport.cc
+LIBPOLLSTER_CXXFLAGS += -DUSE_EVENT_PORT
 endif
 
 ifdef HAVE_DEV_POLL

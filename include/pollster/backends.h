@@ -14,6 +14,9 @@
 namespace pollster {
 
 void
+create_event_port(waiter **waiter, error *err);
+
+void
 create_kqueue(waiter **waiter, error *err);
 
 void
