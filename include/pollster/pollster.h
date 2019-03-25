@@ -84,6 +84,7 @@ public:
 
          error_clear(err);
          remove(err);
+         error_clear(err);
       }
    }
 
