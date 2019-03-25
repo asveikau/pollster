@@ -30,19 +30,18 @@ namespace {
 
 struct kqueue_backend : public pollster::unix_backend
 {
-   int kq;
+   common::FileHandle kq;
    std::vector<struct kevent> changelist;
    struct kevent *cursor, *last;
    std::map<intptr_t, common::Pointer<pollster::event>> refCounts;
 
-   kqueue_backend() : kq(-1), cursor(nullptr), last(nullptr) {}
-   ~kqueue_backend() { if (kq >= 0) close(kq);}
+   kqueue_backend() : cursor(nullptr), last(nullptr) {}
 
    void
    initialize(error *err)
    {
       kq = kqueue();
-      if (kq < 0)
+      if (!kq.Valid())
          ERROR_SET(err, errno, errno);
    exit:;
    }
@@ -191,7 +190,7 @@ struct kqueue_backend : public pollster::unix_backend
       }
 
       nevents = kevent(
-         kq,
+         kq.Get(),
          changelist.size() ? changelist.data() : nullptr,
          changelist.size(),
          events,

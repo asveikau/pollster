@@ -8,6 +8,7 @@
 
 #include <pollster/unix.h>
 #include <pollster/backends.h>
+#include <common/c++/new.h>
 #include <common/misc.h>
 
 #include <sys/epoll.h>
@@ -21,18 +22,17 @@ namespace {
 
 struct epoll_backend : public pollster::unix_backend
 {
-   int pfd;
+   common::FileHandle pfd;
    std::map<intptr_t, common::Pointer<pollster::event>> refCounts;
    struct epoll_event *cursor, *last;
 
-   epoll_backend() : pfd(-1), cursor(nullptr), last(nullptr) {}
-   ~epoll_backend() { if (pfd >= 0) close(pfd); }
+   epoll_backend() : cursor(nullptr), last(nullptr) {}
 
    void
    initialize(error *err)
    {
       pfd = epoll_create1(0);
-      if (pfd < 0)
+      if (!pfd.Valid())
          ERROR_SET(err, errno, errno);
    exit:;
    }
@@ -66,7 +66,7 @@ struct epoll_backend : public pollster::unix_backend
       }
 
       setup_event(&ev, fd, write, object);
-      if (epoll_ctl(pfd, EPOLL_CTL_ADD, fd, &ev))
+      if (epoll_ctl(pfd.Get(), EPOLL_CTL_ADD, fd, &ev))
          ERROR_SET(err, errno, errno);
 
    exit:
@@ -80,7 +80,7 @@ struct epoll_backend : public pollster::unix_backend
       struct epoll_event ev;
 
       setup_event(&ev, fd, false, object);
-      if (epoll_ctl(pfd, EPOLL_CTL_DEL, fd, &ev))
+      if (epoll_ctl(pfd.Get(), EPOLL_CTL_DEL, fd, &ev))
          ERROR_SET(err, errno, errno);
 
       remove_pending(object);
@@ -111,7 +111,7 @@ struct epoll_backend : public pollster::unix_backend
       struct epoll_event ev;
 
       setup_event(&ev, fd, write, object);
-      if (epoll_ctl(pfd, EPOLL_CTL_MOD, fd, &ev))
+      if (epoll_ctl(pfd.Get(), EPOLL_CTL_MOD, fd, &ev))
          ERROR_SET(err, errno, errno);
 
    exit:;
@@ -139,7 +139,7 @@ struct epoll_backend : public pollster::unix_backend
          ERROR_CHECK(err);
       }
 
-      nevents = epoll_wait(pfd, events, ARRAY_SIZE(events), timeout);
+      nevents = epoll_wait(pfd.Get(), events, ARRAY_SIZE(events), timeout);
 
       if (nevents < 0)
          ERROR_SET(err, errno, errno);
@@ -177,14 +177,8 @@ pollster::create_epoll(waiter **waiter, error *err)
 {
    common::Pointer<epoll_backend> r;
 
-   try
-   {
-      *r.GetAddressOf() = new epoll_backend();
-   }
-   catch (std::bad_alloc)
-   {
-      ERROR_SET(err, nomem);
-   }
+   common::New(r, err);
+   ERROR_CHECK(err);
 
    r->initialize(err);
    ERROR_CHECK(err);
