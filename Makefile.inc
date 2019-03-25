@@ -1,6 +1,8 @@
 ifndef LIBPOLLSTER_INC
 LIBPOLLSTER_INC=y
 
+VERSION_CHECK:=perl $(LIBPOLSTER_ROOT)scripts/version-check.pl
+
 LIBCOMMON_ROOT?=$(LIBPOLLSTER_ROOT)../common/
 include $(LIBCOMMON_ROOT)Makefile.inc
 
@@ -42,7 +44,7 @@ GLIBC_MINOR:=$(shell $(CC) -E -dM -include stdio.h - < /dev/null|grep '\#define 
 endif
 
 ifdef GLIBC_MAJOR
-ifeq ($(shell perl $(LIBPOLLSTER_ROOT)scripts/version-check.pl $(GLIBC_MAJOR).$(GLIBC_MINOR) 2.8), 1)
+ifeq ($(shell $(VERSION_CHECK) $(GLIBC_MAJOR).$(GLIBC_MINOR) 2.8), 1)
 LIBPOLLSTER_SRC += \
    $(LIBPOLLSTER_ROOT)src/getaddrinfo-a.cc
 LDFLAGS += -lanl
