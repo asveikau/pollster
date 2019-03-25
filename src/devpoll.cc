@@ -24,7 +24,6 @@
 #include <limits.h>
 
 #include <unordered_map>
-#include <algorithm>
 
 namespace {
 

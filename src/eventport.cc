@@ -23,7 +23,6 @@
 #include <limits.h>
 
 #include <unordered_map>
-#include <algorithm>
 #include <memory>
 
 namespace {
