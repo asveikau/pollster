@@ -54,12 +54,26 @@ struct poll_backend : public pollster::unix_backend
    void
    add_fd(int fd, bool write, pollster::event *object, error *err)
    {
+      bool fd_inserted = false;
+
       struct pollfd pfd = {0};
       pfd.fd = fd;
       pfd.events = POLLIN | (write ? POLLOUT : 0) | POLLPRI;
 
-      pollfds.push_back(pfd);
-      objects.push_back(common::Pointer<pollster::event>(object));
+      try
+      {
+         pollfds.push_back(pfd);
+         fd_inserted = true;
+         objects.push_back(common::Pointer<pollster::event>(object));
+      }
+      catch (std::bad_alloc)
+      {
+         if (fd_inserted)
+            pollfds.resize(pollfds.size() - 1);
+
+         ERROR_SET(err, nomem);
+      }
+   exit:;
    }
 
    void
