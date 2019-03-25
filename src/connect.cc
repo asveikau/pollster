@@ -3,15 +3,25 @@
 
 void
 pollster::ConnectAsync(
+   pollster::waiter *waiterp,
    const char *host,
    const char *service,
    std::function<void(ConnectAsyncStatus, const char *, error *)> onProgress,
-   std::function<void(const std::shared_ptr<common::SocketHandle>, error *)> onResult,
+   std::function<void(const std::shared_ptr<common::SocketHandle> &, error *)> onResult,
    std::function<void(error *)> onError
 )
 {
+   common::Pointer<waiter> waiter;
    addrinfo hint = {0};
    error err;
+
+   if (waiterp)
+      waiter = waiterp;
+   else
+   {
+      pollster::get_common_queue(waiter.GetAddressOf(), &err);
+      ERROR_CHECK(&err);
+   }
 
    hint.ai_socktype = SOCK_STREAM;
 
@@ -27,9 +37,16 @@ pollster::ConnectAsync(
          host,
          service,
          &hint,
-         [onProgress, onResult, onError] (struct addrinfo *info, error *err) -> void
+         [waiter, onProgress, onResult, onError] (const std::shared_ptr<struct addrinfo> &info, error *err) -> void
          {
             std::shared_ptr<common::SocketHandle> fd;
+            common::Pointer<pollster::socket_event> sev;
+
+            if (onProgress)
+            {
+               onProgress(Connect, nullptr, err);
+               ERROR_CHECK(err);
+            }
 
             try
             {
@@ -44,21 +61,76 @@ pollster::ConnectAsync(
             if (!fd->Valid())
                ERROR_SET(err, socket);
 
-            if (onProgress)
-            {
-               onProgress(HostLookup, nullptr, err);
-               ERROR_CHECK(err);
-            }
+            set_nonblock(fd->Get(), true, err);
+            ERROR_CHECK(err);
 
             if (connect(fd->Get(), info->ai_addr, info->ai_addrlen))
-               ERROR_SET(err, socket);
+            {
+               auto r = SOCKET_LASTERROR;
 
-            set_nonblock(fd->Get(), true, err);
+               if (r == SOCK_ERROR(EINPROGRESS))
+               {
+                  waiter->add_socket(
+                     fd,
+                     true,
+                     sev.GetAddressOf(),
+                     err
+                  );
+                  ERROR_CHECK(err);
+
+                  try
+                  {
+                     auto sevWeak = sev.Get();
+                     sev->on_error = onError;
+                     sev->on_signal = [sevWeak, fd, onResult, info] (error *err) -> void
+                     {
+                        int error = 0;
+                        socklen_t socklen = sizeof(error);
+                        common::Pointer<socket_event> sevStrong = sevWeak;
+
+                        if (getsockopt(fd->Get(), SOL_SOCKET, SO_ERROR, &error, &socklen))
+                           ERROR_SET(err, socket);
+
+                        if (error)
+                        {
+                           error_set_socket(err, error);
+                           ERROR_LOG(err);
+                           goto exit;
+                        }
+
+                        sevWeak->remove(err);
+                        ERROR_CHECK(err);
+
+                        onResult(fd, err);
+                        ERROR_CHECK(err);
+                     exit:;
+                     };
+                  }
+                  catch (std::bad_alloc)
+                  {
+                     ERROR_SET(err, nomem);
+                  }
+                  goto exit;
+               }
+
+               error_set_socket(err, r);
+               ERROR_LOG(err);
+               goto exit;
+            }
+
+            sev->remove(err);
+            sev = nullptr;
             ERROR_CHECK(err);
 
             onResult(fd, err);
             ERROR_CHECK(err);
-         exit:;
+
+         exit:
+            if (ERROR_FAILED(err) && sev.Get())
+            {
+               error innerErr;
+               sev->remove(&innerErr);
+            }
          },
          onError
       );

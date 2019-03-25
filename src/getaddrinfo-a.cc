@@ -23,7 +23,7 @@ struct State : public common::RefCountable
    struct gaicb cb;
    struct addrinfo hint;
    void *onHeap;
-   std::function<void(struct addrinfo *, error *err)> onResult;
+   std::function<void(const std::shared_ptr<struct addrinfo> &, error *err)> onResult;
    std::function<void(error *)> onError;
 
    State() : onHeap(nullptr)
@@ -49,7 +49,7 @@ pollster::GetAddrInfoAsync(
    const char *host,
    const char *service,
    struct addrinfo *hint,
-   std::function<void(struct addrinfo *, error *err)> onResult,
+   std::function<void(const std::shared_ptr<struct addrinfo> &, error *err)> onResult,
    std::function<void(error *)> onError
 )
 {
@@ -103,6 +103,7 @@ pollster::GetAddrInfoAsync(
    sev.sigev_notify_function = [] (union sigval val) -> void
    {
       State *state = (State*)val.sival_ptr;
+      std::shared_ptr<struct addrinfo> info;
       error err;
       int r = 0;
 
@@ -110,7 +111,17 @@ pollster::GetAddrInfoAsync(
       if (r)
          ERROR_SET(&err, gai, r);
 
-      state->onResult(state->cb.ar_result, &err);
+      try
+      {
+         info = std::shared_ptr<struct addrinfo>(state->cb.ar_result, freeaddrinfo);
+      }
+      catch (std::bad_alloc)
+      {
+         ERROR_SET(&err, nomem);
+      }
+      state->cb.ar_result = nullptr;
+
+      state->onResult(info, &err);
       ERROR_CHECK(&err);
 
    exit:

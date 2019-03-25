@@ -28,12 +28,19 @@
 #undef gai_strerror
 #define gai_strerror gai_strerrorA
 
+#define SOCKET_LASTERROR GetLastError()
+#define SOCK_ERROR(c)    WSA##c
+
 static INLINE
 void
-error_set_socket(error *err)
+error_set_socket(error *err, DWORD dw)
 {
-   error_set_win32(err, GetLastError());
+   error_set_win32(err, dw);
 }
+
+static INLINE
+void
+error_set_socket(error *err);
 
 static INLINE
 void
@@ -55,6 +62,14 @@ socket_startup(error *err)
 exit:;
 }
 
+static INLINE
+int
+getsockopt_compat(SOCKET sockfd, int level, int optname, void *optval, socklen_t *optlen)
+{
+   return getsockopt(sockfd, level, optname, (char*)optval, optlen);
+}
+#define getsockopt getsockopt_compat
+
 #else
 
 #include <sys/types.h>
@@ -69,12 +84,19 @@ exit:;
 #include <common/error.h>
 #include <common/misc.h>
 
+#define SOCKET_LASTERROR errno
+#define SOCK_ERROR(c)    c
+
 static INLINE
 void
-error_set_socket(error *err)
+error_set_socket(error *err, int r)
 {
-   error_set_errno(err, errno);
+   error_set_errno(err, r);
 }
+
+static INLINE
+void
+error_set_socket(error *err);
 
 static INLINE
 void
@@ -89,7 +111,15 @@ exit:;
 
 #endif
 
+static INLINE
+void
+error_set_socket(error *err)
+{
+   error_set_socket(err, SOCKET_LASTERROR);
+}
+
 #include <common/c++/handle.h>
+#include <memory>
 
 namespace pollster
 {
@@ -102,7 +132,7 @@ GetAddrInfoAsync(
    const char *host,
    const char *service,
    struct addrinfo *hint,
-   std::function<void(struct addrinfo *, error *)> onResult,
+   std::function<void(const std::shared_ptr<struct addrinfo> &, error *)> onResult,
    std::function<void(error *)> onError
 );
 
@@ -112,12 +142,15 @@ enum ConnectAsyncStatus
    Connect,
 };
 
+struct waiter;
+
 void
 ConnectAsync(
+   pollster::waiter *waiter, // can be nullptr for default
    const char *host,
    const char *service,
    std::function<void(ConnectAsyncStatus, const char *, error *)> onProgress,
-   std::function<void(const std::shared_ptr<common::SocketHandle>, error *)> onResult,
+   std::function<void(const std::shared_ptr<common::SocketHandle> &, error *)> onResult,
    std::function<void(error *)> onError
 );
 

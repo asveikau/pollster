@@ -25,7 +25,7 @@ pollster::GetAddrInfoAsync(
    const char *host_,
    const char *service_,
    struct addrinfo *hint_,
-   std::function<void(struct addrinfo *, error *err)> onResult,
+   std::function<void(const std::shared_ptr<struct addrinfo> &, error *err)> onResult,
    std::function<void(error *)> onError
 )
 {
@@ -50,6 +50,7 @@ pollster::GetAddrInfoAsync(
          {
             error err;
             struct addrinfo *info = nullptr;
+            std::shared_ptr<addrinfo> infop;
             int r = getaddrinfo(
                host.c_str(),
                service.c_str(),
@@ -58,7 +59,16 @@ pollster::GetAddrInfoAsync(
             );
             if (r)
                ERROR_SET(&err, gai, r);
-            onResult(info, &err);
+            try
+            {
+               infop = std::shared_ptr<addrinfo>(info, freeaddrinfo);
+            }
+            catch (std::bad_alloc)
+            {
+               ERROR_SET(&err, nomem);
+            }
+            info = nullptr;
+            onResult(infop, &err);
             ERROR_CHECK(&err);
          exit:
             if (info)

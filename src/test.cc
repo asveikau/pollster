@@ -246,6 +246,7 @@ main(int argc, char **argv)
    };
 
    pollster::ConnectAsync(
+      waiter.Get(),
       argv[1],
       argv[2],
       [] (pollster::ConnectAsyncStatus state, const char *arg, error *err) -> void {},
