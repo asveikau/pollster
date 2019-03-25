@@ -61,8 +61,9 @@ ifeq ($(shell $(VERSION_CHECK) $(SUNOS_VERSION) 5.10), 1)
 else
 ifeq ($(shell $(VERSION_CHECK) $(SUNOS_VERSION) 5.8), 1)
 # /dev/poll is available
-endif
-endif
+endif # Solaris 8
+endif # else ... of Solaris 10
+endif # Solaris
 
 ifneq ($(PLATFORM), windows)
 LIBPOLLSTER_SRC += \
