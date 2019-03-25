@@ -20,6 +20,9 @@ void
 create_epoll(waiter **waiter, error *err);
 
 void
+create_dev_poll(waiter **waiter, error *err);
+
+void
 create_poll(waiter **waiter, error *err);
 
 void

@@ -54,16 +54,25 @@ endif
 
 endif
 
-ifeq ($(PLATFORM), sun)
+ifeq ($(PLATFORM), sunos)
 SUNOS_VERSION:=$(shell uname -r)
 ifeq ($(shell $(VERSION_CHECK) $(SUNOS_VERSION) 5.10), 1)
-# port_create() is available
-else
+HAVE_EVENT_PORT:=y
+endif # Solaris 10
 ifeq ($(shell $(VERSION_CHECK) $(SUNOS_VERSION) 5.8), 1)
-# /dev/poll is available
+HAVE_DEV_POLL:=y
 endif # Solaris 8
-endif # else ... of Solaris 10
 endif # Solaris
+
+ifdef HAVE_EVENT_PORT
+# port_create() is available
+endif
+
+ifdef HAVE_DEV_POLL
+LIBPOLLSTER_SRC += \
+   $(LIBPOLLSTER_ROOT)src/devpoll.cc
+LIBPOLLSTER_CXXFLAGS += -DUSE_DEV_POLL
+endif
 
 ifneq ($(PLATFORM), windows)
 LIBPOLLSTER_SRC += \
