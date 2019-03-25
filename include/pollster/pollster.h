@@ -56,6 +56,7 @@ protected:
 public:
 
    // Called when there is an error processing this descriptor.
+   // If this gets called, your fd is about to be removed from the wait list.
    //
    std::function<void(error*)> on_error;
 
