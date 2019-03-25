@@ -174,8 +174,8 @@ struct poll_backend : public pollster::unix_backend
             ERROR_CHECK(err);
          }
       }
+   exit:
       cursor = 0;
-   exit:;
    }
 };
 

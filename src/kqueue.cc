@@ -214,7 +214,8 @@ struct kqueue_backend : public pollster::unix_backend
          process(cursor, err);
          ERROR_CHECK(err);
       }
-   exit:;
+   exit:
+      cursor = last = nullptr;
    }
 
    void

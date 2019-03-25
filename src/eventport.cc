@@ -202,8 +202,8 @@ struct event_port_backend : public pollster::unix_backend
             currentFd = -1;
          }
       }
+   exit:
       first = last = nullptr;
-   exit:;
    }
 
    struct auto_reset : public pollster::auto_reset_signal

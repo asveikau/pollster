@@ -173,8 +173,8 @@ struct dev_poll_backend : public pollster::unix_backend
             }
          }
       }
+   exit:
       first = last = nullptr;
-   exit:;
    }
 
 };
