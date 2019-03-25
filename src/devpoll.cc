@@ -52,11 +52,21 @@ struct dev_poll_backend : public pollster::unix_backend
       pfd.fd = fd;
       pfd.events = POLLIN | (write ? POLLOUT : 0) | POLLPRI;
 
+      try
+      {
+         objects[fd] = common::Pointer<pollster::event>(object);
+      }
+      catch (std::bad_alloc)
+      {
+         ERROR_SET(err, nomem);
+      }
+
       if (::write(pollFd.Get(), &pfd, sizeof(pfd)) != sizeof(pfd))
          ERROR_SET(err, errno, errno);
 
-      objects[fd] = common::Pointer<pollster::event>(object);
-   exit:;
+   exit:
+      if (ERROR_FAILED(err))
+         objects.erase(fd);
    }
 
    void
