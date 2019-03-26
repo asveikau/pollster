@@ -135,50 +135,47 @@ add_socket(
 )
 {
    Pointer<socket_event> socket;
-   socket_event *socketWeak = nullptr;
    auto writeBuffer = std::make_shared<std::vector<char>>();
    std::function<void(const void*, size_t, error *)> write_fn;
 
    waiter->add_socket(
       fd,
       false,
-      [fd, writeBuffer] (socket_event *socketWeak, error *err) -> void
+      [fd, writeBuffer] (socket_event *socket, error *err) -> void
       {
+         socket->on_signal = [fd, socket, writeBuffer] (error *err) -> void
+         {
+            char buf[4096];
+            int r;
+
+      #if defined(_WINDOWS)
+            {std::lock_guard<std::mutex> lock(io_lock);
+      #endif
+            while (writeBuffer->size() && (r = send(fd->Get(), writeBuffer->data(), writeBuffer->size(), 0)) > 0)
+            {
+               writeBuffer->erase(writeBuffer->begin(), writeBuffer->begin() + r);
+               if (!writeBuffer->size())
+               {
+                  socket->set_needs_write(false, err);
+                  ERROR_CHECK(err);
+               }
+            }
+      #if defined(_WINDOWS)
+            } // end lock guard
+      #endif
+
+            while ((r = recv(fd->Get(), buf, sizeof(buf), 0)) > 0)
+            {
+               fwrite(buf, 1, r, stdout);
+               fflush(stdout);
+            }
+         exit:;
+         };
       },
       socket.GetAddressOf(),
       err
    );
    ERROR_CHECK(err);
-
-   socketWeak = socket.Get();
-   socket->on_signal = [fd, socketWeak, writeBuffer] (error *err) -> void
-   {
-      char buf[4096];
-      int r;
-
-#if defined(_WINDOWS)
-      {std::lock_guard<std::mutex> lock(io_lock);
-#endif
-      while (writeBuffer->size() && (r = send(fd->Get(), writeBuffer->data(), writeBuffer->size(), 0)) > 0)
-      {
-         writeBuffer->erase(writeBuffer->begin(), writeBuffer->begin() + r);
-         if (!writeBuffer->size())
-         {
-            socketWeak->set_needs_write(false, err);
-            ERROR_CHECK(err);
-         }
-      }
-#if defined(_WINDOWS)
-      } // end lock guard
-#endif
-
-      while ((r = recv(fd->Get(), buf, sizeof(buf), 0)) > 0)
-      {
-         fwrite(buf, 1, r, stdout);
-         fflush(stdout);
-      }
-   exit:;
-   };
 
    write_fn = [socket, writeBuffer] (const void *buf, size_t len, error *err) -> void
    {
