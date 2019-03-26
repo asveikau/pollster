@@ -226,13 +226,19 @@ struct event_port_backend : public pollster::unix_backend
       void
       signal(error *err)
       {
+         common::Pointer<auto_reset> rc;
+
          if (!port.get())
             goto exit;
+
+         rc = this;
 
          if (port_send(port->Get(), 1, this))
             ERROR_SET(err, errno, errno);
 
-         AddRef();
+         // Port event now owns reference.
+         //
+         rc.Detach();
 
          if (!repeat)
          {
