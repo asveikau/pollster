@@ -68,7 +68,7 @@ pollster::ConnectAsync(
             {
                auto r = SOCKET_LASTERROR;
 
-               if (r == SOCK_ERROR(EINPROGRESS))
+               if (r == SOCK_ERROR(EINPROGRESS) || r == SOCK_ERROR(EWOULDBLOCK))
                {
                   try
                   {

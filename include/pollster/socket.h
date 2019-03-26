@@ -87,6 +87,10 @@ getsockopt_compat(SOCKET sockfd, int level, int optname, void *optval, socklen_t
 #define SOCKET_LASTERROR errno
 #define SOCK_ERROR(c)    c
 
+#ifndef EWOULDBLOCK
+#define EWOULDBLOCK EAGAIN
+#endif
+
 static INLINE
 void
 error_set_socket(error *err, int r)
