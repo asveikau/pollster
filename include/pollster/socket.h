@@ -144,7 +144,11 @@ enum ConnectAsyncStatus
 {
    HostLookup,
    Connect,
+   Connected,
 };
+
+void
+LogConnectAsyncStatus(ConnectAsyncStatus status, const char *arg);
 
 struct waiter;
 

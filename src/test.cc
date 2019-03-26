@@ -251,7 +251,10 @@ main(int argc, char **argv)
       waiter.Get(),
       argv[1],
       argv[2],
-      [] (pollster::ConnectAsyncStatus state, const char *arg, error *err) -> void {},
+      [] (pollster::ConnectAsyncStatus state, const char *arg, error *err) -> void
+      {
+         pollster::LogConnectAsyncStatus(state, arg);
+      },
       [waiter, stop] (const std::shared_ptr<common::SocketHandle> &fd, error *err) -> void
       {
          add_socket(waiter, fd, stop, err);

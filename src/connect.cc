@@ -1,6 +1,8 @@
 #include <pollster/socket.h>
 #include <pollster/pollster.h>
 
+#include <common/logger.h>
+
 void
 pollster::ConnectAsync(
    pollster::waiter *waiterp,
@@ -29,6 +31,24 @@ pollster::ConnectAsync(
    {
       onProgress(HostLookup, host, &err);
       ERROR_CHECK(&err);
+
+      try
+      {
+         auto innerOnResult = onResult;
+         onResult = [onProgress, innerOnResult]
+         (const std::shared_ptr<common::SocketHandle> &r, error *err) -> void
+         {
+            onProgress(Connected, nullptr, err);
+            ERROR_CHECK(err);
+            innerOnResult(r, err);
+            ERROR_CHECK(err);
+         exit:;
+         };
+      }
+      catch (std::bad_alloc)
+      {
+         ERROR_SET(&err, nomem);
+      }
    }
 
    try
@@ -146,4 +166,26 @@ pollster::ConnectAsync(
 exit:
    if (ERROR_FAILED(&err) && onError)
       onError(&err);
+}
+
+void
+pollster::LogConnectAsyncStatus(pollster::ConnectAsyncStatus status, const char *arg)
+{
+   const char *fmt = nullptr;
+
+   switch (status)
+   {
+   case HostLookup:
+      fmt = arg ? "Looking up host %s" : "Looking up host";
+      break;
+   case Connect:
+      fmt = arg ? "Connecting to %s" : "Connecting";
+      break;
+   case Connected:
+      fmt = arg ? "Connection to %s established" : "Connection established";
+      break;
+   }
+
+   if (fmt)
+      log_printf(fmt, arg);
 }
