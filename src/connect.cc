@@ -82,7 +82,7 @@ pollster::ConnectAsync(
                            {
                               int error = 0;
                               socklen_t socklen = sizeof(error);
-                              common::Pointer<socket_event> sevStrong = sev;
+                              common::Pointer<socket_event> sevStrong;
 
                               if (getsockopt(fd->Get(), SOL_SOCKET, SO_ERROR, &error, &socklen))
                                  ERROR_SET(err, socket);
@@ -93,6 +93,8 @@ pollster::ConnectAsync(
                                  ERROR_LOG(err);
                                  goto exit;
                               }
+
+                              sevStrong = sev;
 
                               sev->remove(err);
                               ERROR_CHECK(err);
