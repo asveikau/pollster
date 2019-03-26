@@ -246,6 +246,7 @@ struct event_port_backend : public pollster::unix_backend
    void
    add_auto_reset_signal(
       bool repeating,
+      std::function<void(pollster::auto_reset_signal *, error *)> initialize,
       pollster::auto_reset_signal **ev,
       error *err
    )
@@ -257,6 +258,12 @@ struct event_port_backend : public pollster::unix_backend
 
       r->port = port;
       r->repeat = repeating;
+
+      if (initialize)
+      {
+         initialize(r.Get(), err);
+         ERROR_CHECK(err);
+      }
 
    exit:
       if (ERROR_FAILED(err))

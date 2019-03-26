@@ -37,41 +37,43 @@ add_stdin(
    waiter->add_socket(
       std::make_shared<common::FileHandle>(0),
       false,
+      [stop, write_fn] (socket_event *stdinEv, error *err) -> void
+      {
+         stdinEv->on_signal = [stop, write_fn] (error *err) -> void
+         {
+            char buf[4096];
+            int r;
+
+            while ((r = read(0, buf, sizeof(buf))) > 0)
+            {
+               write_fn(buf, r, err);
+               ERROR_CHECK(err);
+
+               r = -1;
+               errno = EAGAIN;
+               break;
+            }
+
+            if (!r)
+               stop->signal(err);
+            else
+            {
+               switch(errno)
+               {
+               case EAGAIN:
+               case EINTR:
+                  break;
+               default:
+                  ERROR_SET(err, errno, errno);
+               }
+            }
+         exit:;
+         };
+      },
       stdinEv.GetAddressOf(),
       err
    );
    ERROR_CHECK(err);
-
-   stdinEv->on_signal = [stop, write_fn] (error *err) -> void
-   {
-      char buf[4096];
-      int r;
-
-      while ((r = read(0, buf, sizeof(buf))) > 0)
-      {
-         write_fn(buf, r, err);
-         ERROR_CHECK(err);
-
-         r = -1;
-         errno = EAGAIN;
-         break;
-      }
-
-      if (!r)
-         stop->signal(err);
-      else
-      {
-         switch(errno)
-         {
-         case EAGAIN:
-         case EINTR:
-            break;
-         default:
-            ERROR_SET(err, errno, errno);
-         }
-      }
-   exit:;
-   };
 #else
    {
       thread_id id;
@@ -140,6 +142,9 @@ add_socket(
    waiter->add_socket(
       fd,
       false,
+      [fd, writeBuffer] (socket_event *socketWeak, error *err) -> void
+      {
+      },
       socket.GetAddressOf(),
       err
    );

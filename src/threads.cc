@@ -32,6 +32,7 @@ pollster::thread_helper::initialize(thread_helper_init *args, error *err)
 
          args->backend->add_auto_reset_signal(
             true,
+            [] (auto_reset_signal *, error *) -> void {},
             ev.GetAddressOf(),
             err
          );

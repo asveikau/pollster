@@ -70,41 +70,42 @@ pollster::ConnectAsync(
 
                if (r == SOCK_ERROR(EINPROGRESS))
                {
-                  waiter->add_socket(
-                     fd,
-                     true,
-                     sev.GetAddressOf(),
-                     err
-                  );
-                  ERROR_CHECK(err);
-
                   try
                   {
-                     auto sevWeak = sev.Get();
-                     sev->on_error = onError;
-                     sev->on_signal = [sevWeak, fd, onResult, info] (error *err) -> void
-                     {
-                        int error = 0;
-                        socklen_t socklen = sizeof(error);
-                        common::Pointer<socket_event> sevStrong = sevWeak;
-
-                        if (getsockopt(fd->Get(), SOL_SOCKET, SO_ERROR, &error, &socklen))
-                           ERROR_SET(err, socket);
-
-                        if (error)
+                     waiter->add_socket(
+                        fd,
+                        true,
+                        [fd, onError, onResult, info] (socket_event *sev, error *err) -> void
                         {
-                           error_set_socket(err, error);
-                           ERROR_LOG(err);
-                           goto exit;
-                        }
+                           sev->on_error = onError;
+                           sev->on_signal = [sev, fd, onResult, info] (error *err) -> void
+                           {
+                              int error = 0;
+                              socklen_t socklen = sizeof(error);
+                              common::Pointer<socket_event> sevStrong = sev;
 
-                        sevWeak->remove(err);
-                        ERROR_CHECK(err);
+                              if (getsockopt(fd->Get(), SOL_SOCKET, SO_ERROR, &error, &socklen))
+                                 ERROR_SET(err, socket);
 
-                        onResult(fd, err);
-                        ERROR_CHECK(err);
-                     exit:;
-                     };
+                              if (error)
+                              {
+                                 error_set_socket(err, error);
+                                 ERROR_LOG(err);
+                                 goto exit;
+                              }
+
+                              sev->remove(err);
+                              ERROR_CHECK(err);
+
+                              onResult(fd, err);
+                              ERROR_CHECK(err);
+                           exit:;
+                           };
+                        },
+                        sev.GetAddressOf(),
+                        err
+                     );
+                     ERROR_CHECK(err);
                   }
                   catch (std::bad_alloc)
                   {

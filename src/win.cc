@@ -233,6 +233,7 @@ void
 pollster::win_backend::add_socket(
    const std::shared_ptr<common::SocketHandle> &fd,
    bool write,
+   std::function<void(socket_event *, error *)> initialize,
    socket_event **ev,
    error *err
 )
@@ -245,6 +246,12 @@ pollster::win_backend::add_socket(
    e->create(fd, write, err);
    ERROR_CHECK(err);
 
+   if (initialize)
+   {
+      initialize(e.Get(), err);
+      ERROR_CHECK(err);
+   }
+
    add(e->handle.Get(), e.Get(), err);
    ERROR_CHECK(err);
 
@@ -256,6 +263,7 @@ exit:
 void
 pollster::win_backend::add_auto_reset_signal(
    bool repeating,
+   std::function<void(auto_reset_signal*, error *)> initialize,
    auto_reset_signal **ev,
    error *err
 )
@@ -267,6 +275,12 @@ pollster::win_backend::add_auto_reset_signal(
 
    e->create(err);
    ERROR_CHECK(err);
+
+   if (initialize)
+   {
+      initialize(e.Get(), err);
+      ERROR_CHECK(err);
+   }
 
    add(e->handle.Get(), e.Get(), err);
    ERROR_CHECK(err);
@@ -293,11 +307,12 @@ void
 pollster::win_backend::add_timer(
    uint64_t millis,
    bool repeating,
+   std::function<void(event*, error*)> initialize,
    event **ev,
    error *err
 )
 {
-   timer.add(millis, repeating, ev, err);
+   timer.add(millis, repeating, initialize, ev, err);
 }
 
 void

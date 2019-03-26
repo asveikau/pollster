@@ -50,6 +50,7 @@ public:
    add(
       uint64_t millis,
       bool repeating,
+      std::function<void(event*, error*)> initialize,
       event **ev,
       error *err
    );

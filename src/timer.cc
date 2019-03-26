@@ -71,6 +71,7 @@ void
 pollster::timer::add(
    uint64_t millis,
    bool repeating,
+   std::function<void(event*, error*)> initialize,
    event **ev,
    error *err
 )
@@ -81,9 +82,16 @@ pollster::timer::add(
    if (!r.Get())
       ERROR_SET(err, nomem);
 
+   if (initialize)
+   {
+      initialize(r.Get(), err);
+      ERROR_CHECK(err);
+   }
+
    r->thread_helper = thread_helper;
    r->repeat = repeating;
    r->totalMillis = millis;
+
    insert(r.Get(), err);
    ERROR_CHECK(err);
    r->AddRef();

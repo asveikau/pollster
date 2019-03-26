@@ -308,6 +308,7 @@ void
 pollster::unix_backend::add_socket(
    const std::shared_ptr<common::SocketHandle> &fd,
    bool write,
+   std::function<void(socket_event *, error *)> initialize,
    socket_event **ev,
    error *err
 )
@@ -316,6 +317,12 @@ pollster::unix_backend::add_socket(
 
    New(e.GetAddressOf(), err);
    ERROR_CHECK(err);
+
+   if (initialize)
+   {
+      initialize(e.Get(), err);
+      ERROR_CHECK(err);
+   }
 
    base_add_fd(fd->Get(), write, e.Get(), err);
    ERROR_CHECK(err);
@@ -355,6 +362,7 @@ exit:;
 void
 pollster::unix_backend::add_auto_reset_signal(
    bool repeating,
+   std::function<void(auto_reset_signal *, error *)> initialize,
    auto_reset_signal **ev,
    error *err
 )
@@ -366,6 +374,12 @@ pollster::unix_backend::add_auto_reset_signal(
 #endif
    try_create_auto_reset<auto_reset_wrapper>(e.GetAddressOf(), err);
    ERROR_CHECK(err);
+
+   if (initialize)
+   {
+      initialize(e.Get(), err);
+      ERROR_CHECK(err);
+   }
 
    base_add_fd(e->fd->Get(), false, e.Get(), err);
    ERROR_CHECK(err);
@@ -382,11 +396,12 @@ void
 pollster::unix_backend::add_timer(
    uint64_t millis,
    bool repeating,
+   std::function<void(event *, error *)> initialize,
    event **ev,
    error *err
 )
 {
-   timer.add(millis, repeating, ev, err);
+   timer.add(millis, repeating, initialize, ev, err);
 }
 
 void
