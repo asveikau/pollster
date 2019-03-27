@@ -66,19 +66,9 @@ public:
    StreamSocket(
       struct waiter *waiter_ = nullptr,
       std::shared_ptr<common::SocketHandle> fd_ = std::make_shared<common::SocketHandle>()
-   )
-   : waiter(waiter_), fd(fd_), state(std::make_shared<SharedState>())
-   {
-   }
+   );
    StreamSocket(const StreamSocket &) = delete;
-   ~StreamSocket()
-   {
-      if (sev.Get())
-      {
-         error err;
-         sev->remove(&err);
-      }
-   }
+   ~StreamSocket();
 
    std::function<void(ConnectAsyncStatus, const char *, error *)> on_connect_progress;
    std::function<void(error *)> on_error;

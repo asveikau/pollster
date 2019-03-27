@@ -10,6 +10,23 @@
 #include <pollster/sockapi.h>
 #include <common/c++/lock.h>
 
+pollster::StreamSocket::StreamSocket(
+   struct waiter *waiter_,
+   std::shared_ptr<common::SocketHandle> fd_
+)
+: waiter(waiter_), fd(fd_), state(std::make_shared<SharedState>())
+{
+}
+
+pollster::StreamSocket::~StreamSocket()
+{
+   if (sev.Get())
+   {
+      error err;
+      sev->remove(&err);
+   }
+}
+
 void
 pollster::StreamSocket::Connect(const char *host, const char *service)
 {
