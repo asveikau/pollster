@@ -40,7 +40,7 @@ struct fd_wrapper_base : virtual public pollster::event
       auto q = p;
       p = nullptr;
 
-      if (q && fd >= 0)
+      if (q && fd->Valid())
       {
          if (!q->thread_helper.on_owning_thread())
          {
@@ -75,7 +75,7 @@ struct socket_wrapper : public fd_wrapper_base, public pollster::socket_event
    void
    set_needs_write(bool write, error *err)
    {
-      if (p && fd >= 0)
+      if (p && fd->Valid())
       {
          if (!p->thread_helper.on_owning_thread())
          {
