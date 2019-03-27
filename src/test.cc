@@ -81,7 +81,7 @@ main(int argc, char **argv)
       sock->on_error = onError;
       sock->on_closed = [] (error *err) -> void
       {
-         puts("Connection closed");
+         log_printf("Connection closed\n");
       };
       sock->on_recv = [] (const void *buf, int len, error *err) -> void
       {
