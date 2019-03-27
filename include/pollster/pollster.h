@@ -119,12 +119,12 @@ struct socket_event : virtual public event
 struct waiter : public common::RefCountable
 {
    // Add a socket to the fd set.
-   // @write: Set to true if we currently want to poll for write availability.
+   // @write:      Set to true if we currently want to poll for write availability.
    // @initialize: Your earliest opportunity to set ->on_error and ->on_signal.
    //              If you put this off until later, it's theoretically possible
    //              for the fd to be signalled and processed on another thread.
    //              Setting handlers early lets us close that race condition.
-   // @ev:    Out parameter that receives the backend FD object.
+   // @ev:         Out parameter that receives the backend FD object.
    //
    virtual void
    add_socket(
@@ -136,9 +136,10 @@ struct waiter : public common::RefCountable
    ) = 0;
 
    // Add an auto-reset event to the fd set.
-   // @repeating: Object stays in the wait backend after being signalled. Otherwise it is removed after processing.
+   // @repeating:  Object stays in the wait backend after being signalled.
+   //              Otherwise it is removed after processing.
    // @initialize: See comment at add_socket.
-   // @ev:        Out parameter that receives the backend FD object.
+   // @ev:         Out parameter that receives the backend FD object.
    //
    virtual void
    add_auto_reset_signal(
@@ -168,10 +169,11 @@ struct waiter : public common::RefCountable
    }
 
    // Add an event that will be signalled after a delay.
-   // @millis:    Delay in milliseconds
-   // @repeating: Object stays in the wait backend after being signalled. Otherwise it is removed after processing.
+   // @millis:     Delay in milliseconds
+   // @repeating:  Object stays in the wait backend after being signalled.
+   //              Otherwise it is removed after processing.
    // @initialize: See comment at add_socket.
-   // @ev:        Out parameter that receives the backend FD object.
+   // @ev:         Out parameter that receives the backend FD object.
    //
    virtual void
    add_timer(
