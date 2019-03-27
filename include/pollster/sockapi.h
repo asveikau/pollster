@@ -56,7 +56,7 @@ class StreamSocket
    common::Pointer<waiter> waiter;
    std::shared_ptr<common::SocketHandle> fd;
    common::Pointer<socket_event> sev;
-   std::vector<unsigned char> writeBuffer;
+   std::vector<char> writeBuffer;
    std::mutex writeLock;
 public:
    StreamSocket(

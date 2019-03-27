@@ -64,8 +64,10 @@ CheckIoError(int &r, error *err)
    {
       switch (SOCKET_LASTERROR)
       {
+#if !defined(_WINDOWS)
       case SOCK_ERROR(EAGAIN):
-#if (SOCK_ERROR(EAGAIN) != SOCK_ERROR(EWOULDBLOCK))
+#endif
+#if defined(_WINDOWS) || (SOCK_ERROR(EAGAIN) != SOCK_ERROR(EWOULDBLOCK))
       case SOCK_ERROR(EWOULDBLOCK):
 #endif
          break;
@@ -146,7 +148,7 @@ pollster::StreamSocket::Write(const void *buf, int len)
 
    try
    {
-      writeBuffer.insert(writeBuffer.end(), (const unsigned char*)buf, (const unsigned char*)buf+len);
+      writeBuffer.insert(writeBuffer.end(), (const char*)buf, (const char*)buf+len);
    }
    catch (std::bad_alloc)
    {
