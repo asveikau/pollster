@@ -81,60 +81,79 @@ exit:;
 void
 pollster::StreamSocket::AttachSocket(error *err)
 {
-   common::locker l;
-   l.acquire(writeLock);
+   try
+   {
+      common::locker l;
+      auto fd = this->fd;
+      auto state = this->state;
+      auto on_recv = this->on_recv;
+      auto on_closed = this->on_closed;
+      l.acquire(state->writeLock);
 
-   waiter->add_socket(
-      fd,
-      writeBuffer.size() ? true : false,
-      [this] (socket_event *sevWeak, error *err) -> void
-      {
-         sevWeak->on_signal = [this] (error *err) -> void
+      waiter->add_socket(
+         fd,
+         state->writeBuffer.size() ? true : false,
+         [fd, state, on_recv, on_closed] (socket_event *sev, error *err) -> void
          {
-            char buf[4096];
-            int r = 0;
-            common::locker l;
-
-            l.acquire(writeLock);
-            while (writeBuffer.size() && (r = send(fd->Get(), writeBuffer.data(), writeBuffer.size(), 0)) > 0)
+            try
             {
-               writeBuffer.erase(writeBuffer.begin(), writeBuffer.begin() + r);
-               if (!writeBuffer.size())
+               sev->on_signal = [fd, state, sev, on_recv, on_closed] (error *err) -> void
                {
-                  sev->set_needs_write(false, err);
+                  char buf[4096];
+                  int r = 0;
+                  common::locker l;
+                  auto &writeBuffer = state->writeBuffer;
+
+                  l.acquire(state->writeLock);
+                  while (writeBuffer.size() && (r = send(fd->Get(), writeBuffer.data(), writeBuffer.size(), 0)) > 0)
+                  {
+                     writeBuffer.erase(writeBuffer.begin(), writeBuffer.begin() + r);
+                     if (!writeBuffer.size())
+                     {
+                        sev->set_needs_write(false, err);
+                        ERROR_CHECK(err);
+                     }
+                  }
+                  l.release();
+
+                  CheckIoError(r, err);
                   ERROR_CHECK(err);
-               }
-            }
-            l.release();
 
-            CheckIoError(r, err);
-            ERROR_CHECK(err);
+                  while ((r = recv(fd->Get(), buf, sizeof(buf), 0)) > 0)
+                  {
+                     on_recv(buf, r, err);
+                     ERROR_CHECK(err);
+                  }
 
-            while ((r = recv(fd->Get(), buf, sizeof(buf), 0)) > 0)
+                  CheckIoError(r, err);
+                  ERROR_CHECK(err);
+
+                  if (r == 0)
+                  {
+                     error innerError;
+
+                     if (on_closed)
+                        on_closed(err);
+                     sev->remove(&innerError);
+                     ERROR_CHECK(err);
+                  }
+               exit:;
+               };
+            } catch (std::bad_alloc)
             {
-               on_recv(buf, r, err);
-               ERROR_CHECK(err);
-            }
-
-            CheckIoError(r, err);
-            ERROR_CHECK(err);
-
-            if (r == 0)
-            {
-               error innerError;
-
-               if (on_closed)
-                  on_closed(err);
-               sev->remove(&innerError);
-               ERROR_CHECK(err);
+               ERROR_SET(err, nomem);
             }
          exit:;
-         };
-      },
-      sev.GetAddressOf(),
-      err
-   );
-   ERROR_CHECK(err);
+         },
+         sev.GetAddressOf(),
+         err
+      );
+      ERROR_CHECK(err);
+   }
+   catch (std::bad_alloc)
+   {
+      ERROR_SET(err, nomem);
+   }
 exit:;
 }
 
@@ -143,12 +162,12 @@ pollster::StreamSocket::Write(const void *buf, int len)
 {
    error err;
    common::locker l;
-   l.acquire(writeLock);
-   bool was_empty = !writeBuffer.size();
+   l.acquire(state->writeLock);
+   bool was_empty = !state->writeBuffer.size();
 
    try
    {
-      writeBuffer.insert(writeBuffer.end(), (const char*)buf, (const char*)buf+len);
+      state->writeBuffer.insert(state->writeBuffer.end(), (const char*)buf, (const char*)buf+len);
    }
    catch (std::bad_alloc)
    {

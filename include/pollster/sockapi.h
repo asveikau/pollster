@@ -56,17 +56,29 @@ class StreamSocket
    common::Pointer<waiter> waiter;
    std::shared_ptr<common::SocketHandle> fd;
    common::Pointer<socket_event> sev;
-   std::vector<char> writeBuffer;
-   std::mutex writeLock;
+   struct SharedState
+   {
+      std::vector<char> writeBuffer;
+      std::mutex writeLock;
+   };
+   std::shared_ptr<SharedState> state;
 public:
    StreamSocket(
       struct waiter *waiter_ = nullptr,
       std::shared_ptr<common::SocketHandle> fd_ = std::make_shared<common::SocketHandle>()
    )
-   : waiter(waiter_), fd(fd_) 
+   : waiter(waiter_), fd(fd_), state(std::make_shared<SharedState>())
    {
    }
    StreamSocket(const StreamSocket &) = delete;
+   ~StreamSocket()
+   {
+      if (sev.Get())
+      {
+         error err;
+         sev->remove(&err);
+      }
+   }
 
    std::function<void(ConnectAsyncStatus, const char *, error *)> on_connect_progress;
    std::function<void(error *)> on_error;
