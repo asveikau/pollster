@@ -75,7 +75,7 @@ struct dev_poll_backend : public pollster::unix_backend
       auto i = objects.find(fd);
 
       if (i == objects.end())
-         ERROR_SET(err, unknown, "fd not found");
+         goto exit;
 
       pfd.fd = fd;
       pfd.events = POLLREMOVE;
