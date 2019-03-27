@@ -77,6 +77,8 @@ getsockopt_compat(SOCKET sockfd, int level, int optname, void *optval, socklen_t
 
 #else
 
+#include <common/mutex.h> // XXX - workaround for Sun mutex name conflict.
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
