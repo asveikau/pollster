@@ -6,6 +6,11 @@
  copyright notice and this permission notice appear in all copies.
 */
 
+//
+// This file contains a few ifdef'd delclarations to make porting to
+// Windows easier.  For more of a high-level socket API, see sockapi.h
+//
+
 #ifndef pollster_socket_h_
 #define pollster_socket_h_
 
@@ -122,46 +127,10 @@ error_set_socket(error *err)
    error_set_socket(err, SOCKET_LASTERROR);
 }
 
-#include <common/c++/handle.h>
-#include <memory>
-
 namespace pollster
 {
-
-void
-error_set_gai(error *err, int r);
-
-void
-GetAddrInfoAsync(
-   const char *host,
-   const char *service,
-   struct addrinfo *hint,
-   std::function<void(const std::shared_ptr<struct addrinfo> &, error *)> onResult,
-   std::function<void(error *)> onError
-);
-
-enum ConnectAsyncStatus
-{
-   HostLookup,
-   Connect,
-   Connected,
-};
-
-void
-LogConnectAsyncStatus(ConnectAsyncStatus status, const char *arg);
-
-struct waiter;
-
-void
-ConnectAsync(
-   pollster::waiter *waiter, // can be nullptr for default
-   const char *host,
-   const char *service,
-   std::function<void(ConnectAsyncStatus, const char *, error *)> onProgress,
-   std::function<void(const std::shared_ptr<common::SocketHandle> &, error *)> onResult,
-   std::function<void(error *)> onError
-);
-
-} // end namespace
+   void
+   error_set_gai(error *err, int r);
+}
 
 #endif

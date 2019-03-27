@@ -7,6 +7,7 @@
 */
 
 #include <pollster/socket.h>
+#include <pollster/sockapi.h>
 #include <common/c++/refcount.h>
 #include <common/c++/new.h>
 #include <common/size.h>

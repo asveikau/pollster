@@ -14,6 +14,7 @@
 //
 
 #include <pollster/socket.h>
+#include <pollster/sockapi.h>
 #include <common/thread.h>
 
 #include <string>

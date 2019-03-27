@@ -7,6 +7,7 @@
 */
 
 #include <pollster/socket.h>
+#include <pollster/sockapi.h>
 #include <pollster/pollster.h>
 #include <common/logger.h>
 #include <common/thread.h>
