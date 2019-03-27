@@ -120,7 +120,7 @@ struct epoll_backend : public pollster::unix_backend
    void
    exec(error *err)
    {
-      struct epoll_event events[256];
+      struct epoll_event events[EVENT_BUFSZ];
       int nevents = 0;
       auto timeoutInt = timer.next_timer();
       int timeout = -1;

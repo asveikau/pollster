@@ -167,7 +167,7 @@ struct kqueue_backend : public pollster::unix_backend
    void
    exec(error *err)
    {
-      struct kevent events[256];
+      struct kevent events[EVENT_BUFSZ];
       int nevents = 0;
       struct timespec timeoutStorage;
       struct timespec *timeout = nullptr;

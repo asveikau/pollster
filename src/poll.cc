@@ -58,7 +58,7 @@ struct poll_backend : public pollster::unix_backend
 
       struct pollfd pfd = {0};
       pfd.fd = fd;
-      pfd.events = POLLIN | (write ? POLLOUT : 0) | POLLPRI;
+      pfd.events = POLL_EVENTS(write);
 
       try
       {

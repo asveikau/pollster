@@ -56,7 +56,7 @@ struct event_port_backend : public pollster::unix_backend
    void
    add_fd(int fd, bool write, pollster::event *object, error *err)
    {
-      int events = POLLIN | (write ? POLLOUT : 0) | POLLPRI;
+      int events = POLL_EVENTS(write);
       try
       {
          objects[fd] = common::Pointer<pollster::event>(object);
@@ -112,7 +112,7 @@ struct event_port_backend : public pollster::unix_backend
    {
       if (fd != currentFd)
       {
-         int events = POLLIN | (write ? POLLOUT : 0) | POLLPRI;
+         int events = POLL_EVENTS(write);
 
          if (port_dissociate(port->Get(), PORT_SOURCE_FD, fd) && errno != ENOENT)
             ERROR_SET(err, errno, errno);
@@ -128,7 +128,7 @@ struct event_port_backend : public pollster::unix_backend
    exec(error *err)
    {
       auto timeoutInt = timer.next_timer();
-      port_event_t events[256];
+      port_event_t events[EVENT_BUFSZ];
       struct timespec ts = {0};
       struct timespec *tsp = nullptr;
       uint_t n = 0;
@@ -189,7 +189,7 @@ struct event_port_backend : public pollster::unix_backend
 
          if (currentFd >= 0)
          {
-            int events = POLLIN | (q->writeable ? POLLOUT : 0) | POLLPRI;
+            int events = POLL_EVENTS(q->writeable);
             if (port_associate(port->Get(), PORT_SOURCE_FD, currentFd, events, obj))
             {
                error innerErr;

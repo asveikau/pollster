@@ -11,6 +11,11 @@
 
 #include "pollster.h"
 
+#define EVENT_BUFSZ 256
+
+#define POLL_EVENTS(WRITE) \
+   (POLLIN | (WRITE ? POLLOUT : 0) | POLLPRI)
+
 namespace pollster {
 
 void

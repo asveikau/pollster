@@ -49,7 +49,7 @@ struct dev_poll_backend : public pollster::unix_backend
    {
       struct pollfd pfd = {0};
       pfd.fd = fd;
-      pfd.events = POLLIN | (write ? POLLOUT : 0) | POLLPRI;
+      pfd.events = POLL_EVENTS(write);
 
       try
       {
@@ -116,7 +116,7 @@ struct dev_poll_backend : public pollster::unix_backend
       pfd[0].fd = fd;
       pfd[0].events = POLLREMOVE;
       pfd[1].fd = fd;
-      pfd[1].events = POLLIN | (write ? POLLOUT : 0) | POLLPRI;
+      pfd[1].events = POLL_EVENTS(write);
 
       if (::write(pollFd.Get(), &pfd, sizeof(pfd)) != sizeof(pfd))
          ERROR_SET(err, errno, errno);
@@ -128,7 +128,7 @@ struct dev_poll_backend : public pollster::unix_backend
    {
       auto timeoutInt = timer.next_timer();
       struct dvpoll dp = {0};
-      struct pollfd pollfds[256];
+      struct pollfd pollfds[EVENT_BUFSZ];
       int n = 0;
 
       if (!objects.size() && timeoutInt < 0)
