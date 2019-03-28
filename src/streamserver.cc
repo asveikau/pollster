@@ -131,6 +131,9 @@ pollster::StreamServer::AddPort(int port, error *err)
    exit:;
    };
 
+   socket_startup(err);
+   ERROR_CHECK(err);
+
    newSock(err);
    ERROR_CHECK(err);
 

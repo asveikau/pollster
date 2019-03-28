@@ -61,9 +61,6 @@ main(int argc, char **argv)
       gotStop = true;
    };
 
-   socket_startup(&err);
-   ERROR_CHECK(&err);
-
    onError = [stop] (error *err) -> void
    {
       error_clear(err);

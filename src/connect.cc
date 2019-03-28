@@ -18,6 +18,9 @@ pollster::ConnectAsync(
    addrinfo hint = {0};
    error err;
 
+   socket_startup(&err);
+   ERROR_CHECK(&err);
+
    if (waiterp)
       waiter = waiterp;
    else

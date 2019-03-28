@@ -57,15 +57,13 @@ set_nonblock(SOCKET fd, bool on, error *err)
 exit:;
 }
 
-static INLINE
-void
-socket_startup(error *err)
+namespace pollster
 {
-   WSADATA data = {0};
-   if (WSAStartup(MAKEWORD(2,2), &data))
-      ERROR_SET(err, win32, GetLastError());
-exit:;
-}
+
+void
+socket_startup(error *err);
+
+} // end namepsace
 
 static INLINE
 int

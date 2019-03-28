@@ -35,6 +35,9 @@ pollster::GetAddrInfoAsync(
    struct addrinfo hint = {0};
    bool hasHint = false;
 
+   socket_startup(&err);
+   ERROR_CHECK(&err);
+
    if (hint_)
    {
       hasHint = true;

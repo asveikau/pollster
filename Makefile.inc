@@ -23,7 +23,8 @@ LIBPOLLSTER_SRC += \
 
 ifeq ($(PLATFORM), windows)
 LIBPOLLSTER_SRC += \
-   $(LIBPOLLSTER_ROOT)src/win.cc
+   $(LIBPOLLSTER_ROOT)src/win.cc \
+   $(LIBPOLLSTER_ROOT)src/winsock.cc
 else
 LIBPOLLSTER_SRC += \
    $(LIBPOLLSTER_ROOT)src/unix.cc
