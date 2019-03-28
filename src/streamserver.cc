@@ -95,6 +95,22 @@ exit:
    }
 }
 
+static void
+set_reuse(const std::shared_ptr<common::SocketHandle> &fd, error *err)
+{
+   int yes = 1;
+
+   if (setsockopt(fd->Get(), SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)))
+      ERROR_SET(err, socket);
+
+#ifdef SO_REUSEPORT
+   if (setsockopt(fd->Get(), SOL_SOCKET, SO_REUSEPORT, &yes, sizeof(yes)))
+      ERROR_SET(err, socket);
+#endif
+
+exit:;
+}
+
 void
 pollster::StreamServer::AddPort(int port, error *err)
 {
@@ -122,6 +138,9 @@ pollster::StreamServer::AddPort(int port, error *err)
    if (!fd->Valid())
       ERROR_SET(err, socket);
 
+   set_reuse(fd, err);
+   ERROR_CHECK(err);
+
    in.sin_family = AF_INET;
 #ifdef HAVE_SA_LEN
    in.sin_len = sizeof(in);
@@ -137,6 +156,9 @@ pollster::StreamServer::AddPort(int port, error *err)
    *fd = socket(PF_INET6, SOCK_STREAM, 0);
    if (!fd->Valid())
       ERROR_SET(err, socket);
+
+   set_reuse(fd, err);
+   ERROR_CHECK(err);
 
    in6.sin6_family = AF_INET6;
 #ifdef HAVE_SA_LEN

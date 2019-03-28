@@ -73,7 +73,14 @@ getsockopt_compat(SOCKET sockfd, int level, int optname, void *optval, socklen_t
 {
    return getsockopt(sockfd, level, optname, (char*)optval, optlen);
 }
+static INLINE
+int
+setsockopt_compat(SOCKET sockfd, int level, int optname, const void *optval, socklen_t optlen)
+{
+   return setsockopt(sockfd, level, optname, (const char*)optval, optlen);
+}
 #define getsockopt getsockopt_compat
+#define setsockopt setsockopt_compat
 
 #else
 
