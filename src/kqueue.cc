@@ -136,7 +136,7 @@ struct kqueue_backend : public pollster::unix_backend
                changelist.begin(), changelist.end(),
                [object] (struct kevent &p) -> bool
                {
-                  return !(p.flags & EV_DELETE) && (p.udata == UDATA_OBJ_CAST(object));
+                  return (p.udata == UDATA_OBJ_CAST(object) && !(p.flags & EV_DELETE));
                }
             ),
             changelist.end()

@@ -40,7 +40,6 @@ pollster::StreamServer::AddFd(const std::shared_ptr<common::SocketHandle> &fd, e
                sev->on_signal = [waiterWeak, fd, on_client] (error *err) -> void
                {
                   common::SocketHandle nfd;
-                  std::shared_ptr<common::SocketHandle> nfd2;
                   std::shared_ptr<StreamSocket> sock;
 
                   while ((nfd = accept(fd->Get(), nullptr, nullptr)).Valid())
@@ -50,7 +49,7 @@ pollster::StreamServer::AddFd(const std::shared_ptr<common::SocketHandle> &fd, e
 
                      try
                      {
-                        nfd2 = std::make_shared<common::SocketHandle>(nfd.Get());
+                        auto nfd2 = std::make_shared<common::SocketHandle>(nfd.Get());
                         nfd.Detach();
                         sock = std::make_shared<StreamSocket>(waiterWeak, nfd2);
                      }
