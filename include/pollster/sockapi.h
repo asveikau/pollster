@@ -51,6 +51,8 @@ ConnectAsync(
    std::function<void(error *)> onError
 );
 
+class StreamServer;
+
 class StreamSocket
 {
    common::Pointer<waiter> waiter;
@@ -84,6 +86,28 @@ public:
 private:
    void
    AttachSocket(error *err);
+
+   friend class StreamServer;
+};
+
+class StreamServer
+{
+   common::Pointer<waiter> waiter;
+   std::vector<common::Pointer<socket_event>> fds;
+public:
+   StreamServer(struct waiter *waiter_ = nullptr);
+   StreamServer(const StreamServer &) = delete;
+   ~StreamServer();
+
+   std::function<void(const std::shared_ptr<StreamSocket> &, error *err)> on_client;
+
+   // Pass a bound socket.
+   //
+   void
+   AddFd(const std::shared_ptr<common::SocketHandle> &sock, error *err);
+
+   void
+   AddPort(int port, error *err);
 };
 
 } // end namespace

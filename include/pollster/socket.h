@@ -135,4 +135,8 @@ namespace pollster
    error_set_gai(error *err, int r);
 }
 
+#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__APPLE__)
+#define HAVE_SA_LEN 1
+#endif
+
 #endif

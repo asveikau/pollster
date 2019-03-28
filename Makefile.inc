@@ -16,6 +16,7 @@ LIBPOLLSTER_SRC += \
    $(LIBPOLLSTER_ROOT)src/connect.cc \
    $(LIBPOLLSTER_ROOT)src/error-gai.cc \
    $(LIBPOLLSTER_ROOT)src/messagequeue.cc \
+   $(LIBPOLLSTER_ROOT)src/streamserver.cc \
    $(LIBPOLLSTER_ROOT)src/streamsocket.cc \
    $(LIBPOLLSTER_ROOT)src/threads.cc \
    $(LIBPOLLSTER_ROOT)src/timer.cc
