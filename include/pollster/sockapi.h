@@ -77,6 +77,12 @@ public:
    std::function<void(const void *, int, error *)> on_recv;
    std::function<void(error *)> on_closed;
 
+   const common::SocketHandle &
+   GetFd() const
+   {
+      return *fd;
+   }
+
    void
    Connect(const char *host, const char *service);
 
