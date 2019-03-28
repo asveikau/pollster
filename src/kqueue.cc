@@ -17,6 +17,7 @@
 
 #include <unistd.h>
 
+#include <algorithm>
 #include <vector>
 #include <map>
 
@@ -125,14 +126,32 @@ struct kqueue_backend : public pollster::unix_backend
    void
    remove_fd(int fd, pollster::event *object, error *err)
    {
-      auto ev = allocate(object, err);
+      auto it = refCounts.find((intptr_t)object);
+      struct kevent *ev = nullptr;
+
+      if (it == refCounts.end())
+      {
+         changelist.erase(
+            std::remove_if(
+               changelist.begin(), changelist.end(),
+               [object] (struct kevent &p) -> bool
+               {
+                  return !(p.flags & EV_DELETE) && (p.udata == UDATA_OBJ_CAST(object));
+               }
+            ),
+            changelist.end()
+         );
+         goto exit;
+      }
+
+      ev = allocate(object, err);
       ERROR_CHECK(err);
 
       setup_kevent(ev, fd, EV_DELETE, false, object);
 
       remove_pending(object);
 
-      refCounts.erase((intptr_t)object);
+      refCounts.erase(it);
    exit:;
    }
 

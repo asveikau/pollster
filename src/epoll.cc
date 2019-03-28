@@ -78,6 +78,9 @@ struct epoll_backend : public pollster::unix_backend
    remove_fd(int fd, pollster::event *object, error *err)
    {
       struct epoll_event ev;
+      auto it = refCounts.find((intptr_t)object);
+      if (it == refCounts.end())
+         goto exit;
 
       setup_event(&ev, fd, false, object);
       if (epoll_ctl(pfd.Get(), EPOLL_CTL_DEL, fd, &ev))
@@ -85,7 +88,7 @@ struct epoll_backend : public pollster::unix_backend
 
       remove_pending(object);
 
-      refCounts.erase((intptr_t)object);
+      refCounts.erase(it);
    exit:;
    }
 
