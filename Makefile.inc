@@ -3,7 +3,8 @@ LIBPOLLSTER_INC=y
 
 VERSION_CHECK:=perl $(LIBPOLSTER_ROOT)scripts/version-check.pl
 
-LIBCOMMON_ROOT?=$(LIBPOLLSTER_ROOT)../common/
+MAKEFILES_ROOT?=$(LIBPOLLSTER_ROOT)submodules/makefiles/
+LIBCOMMON_ROOT?=$(LIBPOLLSTER_ROOT)submodules/common/
 include $(LIBCOMMON_ROOT)Makefile.inc
 
 LIBPOLLSTER_CXXFLAGS += -fno-rtti
