@@ -80,7 +80,8 @@ pollster::get_common_queue(
 
 exit:
    *waiter = common_waiter;
-   (*waiter)->AddRef();
+   if (*waiter)
+      (*waiter)->AddRef();
 }
 
 void
