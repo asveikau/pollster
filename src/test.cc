@@ -49,6 +49,8 @@ main(int argc, char **argv)
    create(waiter.GetAddressOf(), &err);
    ERROR_CHECK(&err);
 
+   pollster::set_common_queue(waiter.Get());
+
    waiter->add_auto_reset_signal(
       false,
       stop.GetAddressOf(),
