@@ -66,18 +66,44 @@ exit:
    sm_destroy(&sem);
 }
 
+static lazy_init_state lazy = {0};
+static pollster::waiter *common_waiter = nullptr;
+
 void
 pollster::get_common_queue(
    pollster::waiter **waiter,
    error *err
 )
 {
-   static lazy_init_state lazy = {0};
-   static pollster::waiter *w = nullptr;
-
-   lazy_init(&lazy, init_queue, &w, err);
+   lazy_init(&lazy, init_queue, &common_waiter, err);
    ERROR_CHECK(err);
 
 exit:
-   *waiter = w;
+   *waiter = common_waiter;
+   (*waiter)->AddRef();
+}
+
+void
+pollster::set_common_queue(
+   waiter *w
+)
+{
+   error err;
+   struct state
+   {
+      waiter **target;
+      waiter *w;
+   };
+   state st = {&common_waiter, w};
+   lazy_init(
+      &lazy,
+      [] (void *ctx, error *err) -> void
+      {
+         state &st = *(state*)ctx;
+         *st.target = st.w;
+         st.w->AddRef();
+      },
+      &st,
+      &err
+   );
 }

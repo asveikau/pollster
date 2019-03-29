@@ -209,6 +209,15 @@ get_common_queue(
    error *err
 );
 
+// If your application happens to have a worker thread already, you can
+// set it to be the global one.  Do this early, as it will be a no-op if
+// get_common_queue was already called.
+//
+void
+set_common_queue(
+   waiter *w
+);
+
 } // end namespace
 
 #endif
