@@ -244,10 +244,18 @@ struct kqueue_backend : public pollster::unix_backend
 
       if ((ev->flags & EV_ERROR))
       {
+         auto it = refCounts.find((uintptr_t)obj);
          ERROR_SET(err, errno, ev->data);
       exit:
-         if (obj->on_error)
-            obj->on_error(err);
+         if (it != refCounts.end())
+         {
+            common::Pointer<pollster::event> rc = obj;
+
+            refCounts.erase(it);
+
+            if (obj->on_error)
+               obj->on_error(err);
+         }
          error_clear(err);
          return;
       }
