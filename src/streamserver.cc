@@ -27,6 +27,12 @@ pollster::StreamServer::AddFd(const std::shared_ptr<common::SocketHandle> &fd, e
    set_nonblock(fd->Get(), true, err);
    ERROR_CHECK(err);
 
+   if (!waiter.Get())
+   {
+      get_common_queue(waiter.GetAddressOf(), err);
+      ERROR_CHECK(err);
+   }
+
    try
    {
       auto waiterWeak = waiter.Get();
