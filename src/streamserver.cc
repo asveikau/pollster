@@ -156,6 +156,9 @@ pollster::StreamServer::AddPort(int port, error *err)
    AddFd(fd, err);
    ERROR_CHECK(err);
 
+   newSock(err);
+   ERROR_CHECK(err);
+
    *fd = socket(PF_INET6, SOCK_STREAM, 0);
    if (!fd->Valid())
       ERROR_SET(err, socket);
