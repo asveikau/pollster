@@ -130,6 +130,7 @@ pollster::StreamServer::AddPort(int port, error *err)
 {
    struct sockaddr_in in = {0};
    struct sockaddr_in6 in6 = {0};
+   sockaddr *sa = nullptr;
    std::shared_ptr<common::SocketHandle> fd;
 
    auto newSock = [&fd] (error *err) -> void
@@ -158,13 +159,12 @@ pollster::StreamServer::AddPort(int port, error *err)
    set_reuse(fd, err);
    ERROR_CHECK(err);
 
-   in.sin_family = AF_INET;
-#ifdef HAVE_SA_LEN
-   in.sin_len = sizeof(in);
-#endif
+   sockaddr_set_af(&in);
    in.sin_port = htons(port);
 
-   if (bind(fd->Get(), (sockaddr*)&in, sizeof(in)))
+   sa = (sockaddr*)&in;
+
+   if (bind(fd->Get(), sa, socklen(sa)))
       ERROR_SET(err, socket);
 
    AddFd(fd, err);
@@ -180,13 +180,12 @@ pollster::StreamServer::AddPort(int port, error *err)
    set_reuse(fd, err);
    ERROR_CHECK(err);
 
-   in6.sin6_family = AF_INET6;
-#ifdef HAVE_SA_LEN
-   in6.sin6_len = sizeof(in6);
-#endif
+   sockaddr_set_af(&in6);
    in6.sin6_port = htons(port);
 
-   if (bind(fd->Get(), (sockaddr*)&in6, sizeof(in6)))
+   sa = (sockaddr*)&in6;
+
+   if (bind(fd->Get(), sa, socklen(sa)))
       ERROR_SET(err, socket);
 
    AddFd(fd, err);

@@ -138,6 +138,27 @@ namespace pollster
 {
    void
    error_set_gai(error *err, int r);
+
+   int
+   socklen(int af);
+
+   int
+   socklen(struct sockaddr *);
+
+   void
+   sockaddr_set_af(struct sockaddr *, int af);
+
+   static inline void
+   sockaddr_set_af(struct sockaddr_in *in)
+   {
+      sockaddr_set_af((sockaddr*)in, AF_INET);
+   }
+
+   static inline void
+   sockaddr_set_af(struct sockaddr_in6 *in6)
+   {
+      sockaddr_set_af((sockaddr*)in6, AF_INET6);
+   }
 }
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__APPLE__)
