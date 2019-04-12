@@ -1,5 +1,5 @@
 /*
- Copyright (C) 2018 Andrew Sveikauskas
+ Copyright (C) 2018, 2019 Andrew Sveikauskas
 
  Permission to use, copy, modify, and distribute this software for any
  purpose with or without fee is hereby granted, provided that the above
@@ -12,6 +12,8 @@
 #include <common/logger.h>
 #include <common/thread.h>
 
+#include <algorithm>
+#include <memory>
 #include <mutex>
 #include <vector>
 #include <stdio.h>
@@ -27,24 +29,40 @@ add_stdin(
    error *err
 );
 
+static void
+add_socket(
+   const std::shared_ptr<pollster::StreamSocket> &sock,
+   const std::function<void(error *)> &onError,
+   error *err
+);
+
+std::vector<std::shared_ptr<pollster::StreamSocket>>
+sockets;
+
+static void
+usage()
+{
+   fprintf(stderr, "usage: test [-tcpclient host port] [-tcpserver port]\n");
+   exit(1);
+}
+
 int
 main(int argc, char **argv)
 {
    Pointer<waiter> waiter;
    Pointer<auto_reset_signal> stop;
-   std::shared_ptr<pollster::StreamSocket> sock;
+   std::vector<std::function<void(error *)>> ops;
 
    std::function<void(error*)> onError;
    bool gotStop = false;
    error err;
 
+   bool needUsage = true;
+
    log_register_callback(
       [] (void *np, const char *p) -> void { fputs(p, stderr); },
       nullptr
    );
-
-   if (argc < 2)
-      ERROR_SET(&err, unknown, "usage: test host port");
 
    create(waiter.GetAddressOf(), &err);
    ERROR_CHECK(&err);
@@ -71,40 +89,86 @@ main(int argc, char **argv)
 
    try
    {
-      sock = std::make_shared<pollster::StreamSocket>(waiter.Get());
-      sock->on_connect_progress =
-         [] (pollster::ConnectAsyncStatus state, const char *arg, error *err) -> void
+      for (int i = 1; i<argc; ++i)
+      {
+         if (!strcmp(argv[i], "-tcpclient"))
          {
-            pollster::LogConnectAsyncStatus(state, arg);
-         };
-      sock->on_error = onError;
-      sock->on_closed = [] (error *err) -> void
-      {
-         log_printf("Connection closed\n");
-      };
-      sock->on_recv = [] (const void *buf, int len, error *err) -> void
-      {
-         fwrite(buf, 1, len, stdout);
-         fflush(stdout);
-      };
+            if (i+2 >= argc)
+               usage();
+
+            needUsage = false;
+
+            const char *host = argv[++i];
+            const char *port = argv[++i];
+            auto sock = std::make_shared<pollster::StreamSocket>();
+            add_socket(sock, onError, &err);
+            ERROR_CHECK(&err);
+
+            ops.push_back(
+               [sock, host, port] (error *err) -> void
+               {
+                  sock->Connect(host, port);
+               }
+            );
+         }
+         else if (!strcmp(argv[i], "-tcpserver"))
+         {
+            if (i+1 >= argc)
+               usage();
+
+            needUsage = false;
+
+            const char *portString = argv[++i];
+            static pollster::StreamServer server;
+
+            if (!server.on_client)
+            {
+               server.on_client = [onError] (
+                  const std::shared_ptr<pollster::StreamSocket> &fd,
+                  error *err
+               ) -> void
+               {
+                  log_printf("server: got client\n");
+
+                  add_socket(fd, onError, err);
+               };
+            }
+
+            server.AddPort(atoi(portString), &err);
+            ERROR_CHECK(&err);
+         }
+      }
    }
    catch (std::bad_alloc)
    {
       ERROR_SET(&err, nomem);
    }
 
+
+   if (needUsage)
+      usage();
+
    add_stdin(
       waiter,
       stop,
-      [sock] (const void *buf, size_t n, error *err) -> void
+      [] (const void *buf, size_t n, error *err) -> void
       {
-         sock->Write(buf, n);
+         for (auto &sock : sockets)
+         {
+            sock->Write(buf, n);
+         }
       },
       &err
    );
    ERROR_CHECK(&err);
 
-   sock->Connect(argv[1], argv[2]);
+   for (auto &op : ops)
+   {
+      op(&err);
+      ERROR_CHECK(&err);
+   }
+
+   ops.clear();
 
    while (!gotStop)
    {
@@ -114,6 +178,53 @@ main(int argc, char **argv)
 
 exit:
    return ERROR_FAILED(&err) ? 1 : 0;
+}
+
+static void
+add_socket(
+   const std::shared_ptr<pollster::StreamSocket> &sock,
+   const std::function<void(error *)> &onError,
+   error *err
+)
+{
+   try
+   {
+      auto sockWeak = sock.get();
+
+      sock->on_connect_progress =
+         [] (pollster::ConnectAsyncStatus state, const char *arg, error *err) -> void
+         {
+            pollster::LogConnectAsyncStatus(state, arg);
+         };
+      sock->on_error = onError;
+      sock->on_closed = [sockWeak] (error *err) -> void
+      {
+         log_printf("Connection closed\n");
+
+         sockets.erase(
+            std::remove_if(
+               sockets.begin(),
+               sockets.end(),
+               [sockWeak] (const std::shared_ptr<pollster::StreamSocket> &fd) -> bool
+               {
+                  return fd.get() == sockWeak;
+               }
+            ),
+            sockets.end()
+         );
+      };
+      sock->on_recv = [] (const void *buf, int len, error *err) -> void
+      {
+         fwrite(buf, 1, len, stdout);
+         fflush(stdout);
+      };
+      sockets.push_back(sock);
+   }
+   catch (std::bad_alloc)
+   {
+      ERROR_SET(err, nomem);
+   }
+exit:;
 }
 
 static void
