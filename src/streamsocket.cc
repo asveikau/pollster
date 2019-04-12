@@ -156,9 +156,13 @@ pollster::StreamSocket::AttachSocket(error *err)
                   if (r == 0)
                   {
                      error innerError;
+                     common::Pointer<pollster::socket_event> rc;
 
                      if (on_closed)
+                     {
+                        rc = sev;
                         on_closed(err);
+                     }
                      sev->remove(&innerError);
                      ERROR_CHECK(err);
                   }
