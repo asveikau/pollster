@@ -35,6 +35,7 @@ struct kqueue_backend : public pollster::unix_backend
    std::vector<struct kevent> changelist;
    struct kevent *cursor, *last;
    std::map<intptr_t, common::Pointer<pollster::event>> refCounts;
+   std::vector<common::Pointer<pollster::event>> toDelete;
 
    kqueue_backend() : cursor(nullptr), last(nullptr) {}
 
@@ -130,19 +131,7 @@ struct kqueue_backend : public pollster::unix_backend
       struct kevent *ev = nullptr;
 
       if (it == refCounts.end())
-      {
-         changelist.erase(
-            std::remove_if(
-               changelist.begin(), changelist.end(),
-               [object] (struct kevent &p) -> bool
-               {
-                  return (p.udata == UDATA_OBJ_CAST(object) && !(p.flags & EV_DELETE));
-               }
-            ),
-            changelist.end()
-         );
          goto exit;
-      }
 
       ev = allocate(object, err);
       ERROR_CHECK(err);
@@ -150,6 +139,15 @@ struct kqueue_backend : public pollster::unix_backend
       setup_kevent(ev, fd, EV_DELETE, false, object);
 
       remove_pending(object);
+
+      try
+      {
+         toDelete.push_back(common::Pointer<pollster::event>(object));
+      }
+      catch (std::bad_alloc)
+      {
+         ERROR_SET(err, nomem);
+      }
 
       refCounts.erase(it);
    exit:;
@@ -218,6 +216,7 @@ struct kqueue_backend : public pollster::unix_backend
       );
 
       changelist.resize(0);
+      toDelete.resize(0);
 
       cursor = events - 1;
       last = events + nevents;
