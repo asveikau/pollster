@@ -1,7 +1,7 @@
 ifndef LIBPOLLSTER_INC
 LIBPOLLSTER_INC=y
 
-VERSION_CHECK:=perl $(LIBPOLSTER_ROOT)scripts/version-check.pl
+VERSION_CHECK:=perl $(LIBPOLLSTER_ROOT)scripts/version-check.pl
 
 MAKEFILES_ROOT?=$(LIBPOLLSTER_ROOT)submodules/makefiles/
 LIBCOMMON_ROOT?=$(LIBPOLLSTER_ROOT)submodules/common/
