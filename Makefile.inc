@@ -12,6 +12,7 @@ LIBPOLLSTER_CXXFLAGS += -I$(LIBCOMMON_ROOT)include
 LIBPOLLSTER_CXXFLAGS += -I$(LIBPOLLSTER_ROOT)include
 
 LIBPOLLSTER_SRC += \
+   $(LIBPOLLSTER_ROOT)src/afunix.cc \
    $(LIBPOLLSTER_ROOT)src/backends.cc \
    $(LIBPOLLSTER_ROOT)src/commonqueue.cc \
    $(LIBPOLLSTER_ROOT)src/connect.cc \

@@ -82,6 +82,65 @@ exit:
    }
 }
 
+void
+pollster::StreamSocket::ConnectUnixDomain(const char *path)
+{
+   error err;
+   struct sockaddr_un un = {0};
+   struct sockaddr *sa = (struct sockaddr*)&un;
+
+   if (fd->Valid())
+      ERROR_SET(&err, unknown, "Already bound to socket");
+
+   if (!waiter.Get())
+   {
+      get_common_queue(waiter.GetAddressOf(), &err);
+      ERROR_CHECK(&err);
+   }
+
+   socket_startup(&err);
+   ERROR_CHECK(&err);
+
+   sockaddr_un_set(&un, path, &err);
+   ERROR_CHECK(&err);
+
+   *fd = socket(PF_UNIX, SOCK_STREAM, 0);
+   if (!fd->Valid())
+   {
+#if defined(_WINDOWS)
+      goto winFallback;
+#endif
+      ERROR_SET(&err, socket);
+   }
+
+   if (connect(fd->Get(), sa, socklen(sa)))
+   {
+#if defined(_WINDOWS)
+      if (GetLastError() == WSAEINVAL)
+         goto winFallback;
+#endif
+      ERROR_SET(&err, socket);
+   }
+
+   set_nonblock(fd->Get(), true, &err);
+   ERROR_CHECK(&err);
+
+   AttachSocket(&err);
+   ERROR_CHECK(&err);
+
+exit:
+   if (ERROR_FAILED(&err) && on_error)
+   {
+      on_error(&err);
+   }
+   return;
+#if defined(_WINDOWS)
+winFallback:
+   // TODO
+   ERROR_SET(&err, win32, E_NOTIMPL);
+#endif
+}
+
 static void
 CheckIoError(int &r, error *err)
 {

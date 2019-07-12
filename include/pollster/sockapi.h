@@ -87,6 +87,9 @@ public:
    Connect(const char *host, const char *service);
 
    void
+   ConnectUnixDomain(const char *path);
+
+   void
    Write(const void *buf, int len);
 
 private:
@@ -114,6 +117,9 @@ public:
 
    void
    AddPort(int port, error *err);
+
+   void
+   AddUnixDomain(const char *path, error *err);
 };
 
 } // end namespace

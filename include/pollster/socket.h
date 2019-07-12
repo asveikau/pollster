@@ -123,7 +123,15 @@ set_nonblock(int fd, bool on, error *err)
 exit:;
 }
 
-#define socket_startup(...) ((void)0)
+namespace pollster
+{
+
+static inline void
+socket_startup(error *err)
+{
+}
+
+} // end namepsace
 
 #endif
 
@@ -164,5 +172,26 @@ namespace pollster
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__APPLE__)
 #define HAVE_SA_LEN 1
 #endif
+
+#if defined(AF_UNIX)
+#if defined(_WINDOWS)
+// XXX, should include <afunix.h>, but would require greater SDK than
+// sometimes built with.
+#define UNIX_PATH_MAX 108
+typedef struct sockaddr_un
+{
+   ADDRESS_FAMILY sun_family;
+   char sun_path[UNIX_PATH_MAX];
+} SOCKADDR_UN, *PSOCKADDR_UN;
+#else
+#include <sys/un.h>
+#endif
+#endif
+
+namespace pollster
+{
+   void
+   sockaddr_un_set(struct sockaddr_un *addr, const char *path, error *err);
+}
 
 #endif

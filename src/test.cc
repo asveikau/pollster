@@ -111,7 +111,26 @@ main(int argc, char **argv)
                }
             );
          }
-         else if (!strcmp(argv[i], "-tcpserver"))
+         if (!strcmp(argv[i], "-unixclient"))
+         {
+            if (i+1 >= argc)
+               usage();
+
+            needUsage = false;
+
+            const char *path = argv[++i];
+            auto sock = std::make_shared<pollster::StreamSocket>();
+            add_socket(sock, onError, &err);
+            ERROR_CHECK(&err);
+
+            ops.push_back(
+               [sock, path] (error *err) -> void
+               {
+                  sock->ConnectUnixDomain(path);
+               }
+            );
+         }
+         else if (!strcmp(argv[i], "-tcpserver") || !strcmp(argv[i], "-unixserver"))
          {
             if (i+1 >= argc)
                usage();
@@ -134,7 +153,10 @@ main(int argc, char **argv)
                };
             }
 
-            server.AddPort(atoi(portString), &err);
+            if (!strcmp(argv[i], "-tcpserver"))
+               server.AddPort(atoi(portString), &err);
+            else
+               server.AddUnixDomain(portString, &err);
             ERROR_CHECK(&err);
          }
       }

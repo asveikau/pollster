@@ -125,6 +125,23 @@ set_reuse(const std::shared_ptr<common::SocketHandle> &fd, error *err)
 exit:;
 }
 
+static void
+NewSocket(std::shared_ptr<common::SocketHandle> &fd, error *err)
+{
+   pollster::socket_startup(err);
+   ERROR_CHECK(err);
+
+   try
+   {
+      fd = std::make_shared<common::SocketHandle>();
+   }
+   catch (std::bad_alloc)
+   {
+      ERROR_SET(err, nomem);
+   }
+exit:;
+}
+
 void
 pollster::StreamServer::AddPort(int port, error *err)
 {
@@ -133,23 +150,7 @@ pollster::StreamServer::AddPort(int port, error *err)
    sockaddr *sa = nullptr;
    std::shared_ptr<common::SocketHandle> fd;
 
-   auto newSock = [&fd] (error *err) -> void
-   {
-      try
-      {
-         fd = std::make_shared<common::SocketHandle>();
-      }
-      catch (std::bad_alloc)
-      {
-         ERROR_SET(err, nomem);
-      }
-   exit:;
-   };
-
-   socket_startup(err);
-   ERROR_CHECK(err);
-
-   newSock(err);
+   NewSocket(fd, err);
    ERROR_CHECK(err);
 
    *fd = socket(PF_INET, SOCK_STREAM, 0);
@@ -170,7 +171,7 @@ pollster::StreamServer::AddPort(int port, error *err)
    AddFd(fd, err);
    ERROR_CHECK(err);
 
-   newSock(err);
+   NewSocket(fd, err);
    ERROR_CHECK(err);
 
    *fd = socket(PF_INET6, SOCK_STREAM, 0);
@@ -192,4 +193,49 @@ pollster::StreamServer::AddPort(int port, error *err)
    ERROR_CHECK(err);
 
 exit:;
+}
+
+void
+pollster::StreamServer::AddUnixDomain(const char *path, error *err)
+{
+   struct sockaddr_un un = {0};
+   struct sockaddr *sa;
+   std::shared_ptr<common::SocketHandle> fd;
+
+   NewSocket(fd, err);
+   ERROR_CHECK(err);
+
+   *fd = socket(PF_UNIX, SOCK_STREAM, 0);
+   if (!fd->Valid())
+   {
+#if defined(_WINDOWS)
+      goto winFallback;
+#endif
+      ERROR_SET(err, socket);
+   }
+
+   sockaddr_un_set(&un, path, err);
+   ERROR_CHECK(err);
+
+   sa = (struct sockaddr*)&un;
+
+   if (bind(fd->Get(), sa, socklen(sa)))
+   {
+#if defined(_WINDOWS)
+      if (GetLastError() == WSAEINVAL)
+         goto winFallback;
+#endif
+      ERROR_SET(err, socket);
+   }
+
+   AddFd(fd, err);
+   ERROR_CHECK(err);
+
+exit:
+   return;
+#if defined(_WINDOWS)
+winFallback:
+   // TODO
+   ERROR_SET(err, win32, E_NOTIMPL);
+#endif
 }

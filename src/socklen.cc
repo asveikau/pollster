@@ -8,21 +8,6 @@
 
 #include <pollster/socket.h>
 
-#if defined(AF_UNIX)
-#if defined(_WINDOWS)
-// XXX, should include <afunix.h>, but would require greater SDK than
-// sometimes built with.
-#define UNIX_PATH_MAX 108
-typedef struct sockaddr_un
-{
-   ADDRESS_FAMILY sun_family;
-   char sun_path[UNIX_PATH_MAX];
-} SOCKADDR_UN, *PSOCKADDR_UN;
-#else
-#include <sys/un.h>
-#endif
-#endif
-
 int
 pollster::socklen(int af)
 {
