@@ -42,7 +42,9 @@ sockets;
 static void
 usage()
 {
-   fprintf(stderr, "usage: test [-tcpclient host port] [-tcpserver port]\n");
+   fprintf(stderr, "usage: test [-tcpclient host port] [-tcpserver port] "
+                               "[-unixclient path] [-unixserver path] "
+                   "\n");
    exit(1);
 }
 
