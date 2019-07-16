@@ -16,6 +16,7 @@
 
 #include <vector>
 #include <functional>
+#include <memory>
 
 namespace pollster {
 
@@ -129,6 +130,42 @@ struct win_backend : public waiter
    void
    exec(error *err);
 };
+
+namespace windows
+{
+   void
+   CreateOverlapped(
+      waiter *w,
+      std::function<void (error *)> on_error,
+      std::function<void (DWORD, OVERLAPPED*, error *)> on_result,
+      OVERLAPPED **res,
+      LPOVERLAPPED_COMPLETION_ROUTINE *fn,
+      error *err
+   );
+
+   void
+   FreeOverlapped(OVERLAPPED *);
+
+   void
+   ReadFileAsync(
+      waiter *w,
+      std::shared_ptr<common::FileHandle> file,
+      void *buffer,
+      DWORD len,
+      std::function<void(error *)> on_error,
+      std::function<void(DWORD, error *)> on_result
+   );
+
+   void
+   WriteFileAsync(
+      waiter *w,
+      std::shared_ptr<common::FileHandle> file,
+      const void *buffer,
+      DWORD len,
+      std::function<void(error *)> on_error,
+      std::function<void(DWORD, error *)> on_result
+   );
+}
 
 } // end namespace
 

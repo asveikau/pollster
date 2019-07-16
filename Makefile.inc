@@ -26,6 +26,7 @@ LIBPOLLSTER_SRC += \
 
 ifeq ($(PLATFORM), windows)
 LIBPOLLSTER_SRC += \
+   $(LIBPOLLSTER_ROOT)src/winasync.cc \
    $(LIBPOLLSTER_ROOT)src/win.cc \
    $(LIBPOLLSTER_ROOT)src/winsock.cc
 else
