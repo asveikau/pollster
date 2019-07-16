@@ -599,11 +599,12 @@ pollster::wait_loop::exec(timer *optional_timer, error *err)
    if (!nHandles && timeout == INFINITE)
       ERROR_SET(err, unknown, "exec() called with empty fd set");
 
-   result = WaitForMultipleObjects(
+   result = WaitForMultipleObjectsEx(
       nHandles,
       handles,
       FALSE,
-      timeout
+      timeout,
+      TRUE
    );
    if (result == WAIT_FAILED)
       ERROR_SET(err, win32, GetLastError());
@@ -611,6 +612,8 @@ pollster::wait_loop::exec(timer *optional_timer, error *err)
       idx = result - WAIT_OBJECT_0;
    else if (result >= WAIT_ABANDONED_0 && result < WAIT_ABANDONED_0+nHandles)
       idx = result - WAIT_ABANDONED_0;
+   else if (result == WAIT_IO_COMPLETION)
+      ; // no-op.
 
    if (idx >= 0)
    {
