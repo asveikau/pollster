@@ -60,6 +60,9 @@ struct fd_wrapper_base : virtual public pollster::event
          }
       }
    }
+
+   event::handle_t
+   get_handle() const { return fd->Get(); }
 };
 
 struct socket_wrapper : public fd_wrapper_base, public pollster::socket_event

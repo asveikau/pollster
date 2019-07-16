@@ -60,6 +60,15 @@ public:
    //
    std::function<void(error*)> on_error;
 
+   // Purposeful break of abstraction.  May not return anything useful.
+   //
+#if defined (_WINDOWS)
+   typedef HANDLE handle_t;
+#else
+   typedef int handle_t;
+#endif
+   virtual handle_t get_handle() const { return (handle_t) -1; }
+
    //
    // The following should be called within a backend's exec() implementation.
    //

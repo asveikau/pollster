@@ -50,6 +50,9 @@ struct handle_wrapper_base : virtual public pollster::event
          }
       }
    }
+
+   event::handle_t
+   get_handle() const { return handle.Get(); }
 };
 
 struct socket_wrapper : public handle_wrapper_base, public pollster::socket_event
@@ -88,6 +91,9 @@ struct socket_wrapper : public handle_wrapper_base, public pollster::socket_even
          ERROR_SET(err, win32, GetLastError());
    exit:;
    }
+
+   event::handle_t
+   get_handle() const { return (HANDLE)fd->Get(); }
 };
 
 struct auto_reset_wrapper : public handle_wrapper_base, public pollster::auto_reset_signal
