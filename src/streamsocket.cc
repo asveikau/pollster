@@ -129,13 +129,17 @@ pollster::StreamSocket::ConnectUnixDomain(const char *path)
    ERROR_CHECK(&err);
 
 exit:
-   if (ERROR_FAILED(&err) && on_error)
+   if (ERROR_FAILED(&err))
    {
-      on_error(&err);
+      fd->Reset();
+
+      if (on_error)
+         on_error(&err);
    }
    return;
 #if defined(_WINDOWS)
 winFallback:
+   fd->Reset();
    // TODO
    ERROR_SET(&err, win32, E_NOTIMPL);
 #endif
