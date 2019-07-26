@@ -18,6 +18,13 @@ pollster::StreamSocket::StreamSocket(
 {
 }
 
+pollster::StreamSocket::StreamSocket(
+   std::function<void(const void *buf, int len, error *err)> writeFn_
+)
+: writeFn(writeFn_)
+{
+}
+
 pollster::StreamSocket::~StreamSocket()
 {
    if (sev.Get())
@@ -32,7 +39,7 @@ pollster::StreamSocket::Connect(const char *host, const char *service)
 {
    error err;
 
-   if (fd->Valid())
+   if ((fd.get() && fd->Valid()) || writeFn)
       ERROR_SET(&err, unknown, "Already bound to socket");
 
    if (!waiter.Get())
@@ -89,7 +96,7 @@ pollster::StreamSocket::ConnectUnixDomain(const char *path)
    struct sockaddr_un un = {0};
    struct sockaddr *sa = (struct sockaddr*)&un;
 
-   if (fd->Valid())
+   if ((fd.get() && fd->Valid()) || writeFn)
       ERROR_SET(&err, unknown, "Already bound to socket");
 
    if (!waiter.Get())
@@ -254,8 +261,17 @@ pollster::StreamSocket::Write(const void *buf, int len)
 {
    error err;
    common::locker l;
+   bool was_empty = false;
+
+   if (writeFn)
+   {
+      writeFn(buf, len, &err);
+      ERROR_CHECK(&err);
+      goto exit;
+   }
+
    l.acquire(state->writeLock);
-   bool was_empty = !state->writeBuffer.size();
+   was_empty = !state->writeBuffer.size();
 
    try
    {

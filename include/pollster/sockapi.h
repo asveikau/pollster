@@ -64,10 +64,14 @@ class StreamSocket
       std::mutex writeLock;
    };
    std::shared_ptr<SharedState> state;
+   std::function<void(const void *buf, int len, error *err)> writeFn;
 public:
    StreamSocket(
       struct waiter *waiter_ = nullptr,
       std::shared_ptr<common::SocketHandle> fd_ = std::make_shared<common::SocketHandle>()
+   );
+   StreamSocket(
+      std::function<void(const void *buf, int len, error *err)> writeFn
    );
    StreamSocket(const StreamSocket &) = delete;
    ~StreamSocket();
