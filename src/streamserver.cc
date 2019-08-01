@@ -8,6 +8,9 @@
 
 #include <pollster/socket.h>
 #include <pollster/sockapi.h>
+#if defined(_WINDOWS)
+#include <pollster/win.h>
+#endif
 
 pollster::StreamServer::StreamServer(struct waiter *waiter_)
    : waiter(waiter_)
@@ -270,6 +273,9 @@ pollster::StreamServer::AddUnixDomain(const char *path, error *err)
 #endif
       ERROR_SET(err, socket);
    }
+#if defined(_WINDOWS) && defined(TEST_LEGACY_UNIX_SOCKET)
+   goto winFallback;
+#endif
 
    AddFd(fd, err);
    ERROR_CHECK(err);
@@ -278,7 +284,57 @@ exit:
    return;
 #if defined(_WINDOWS)
 winFallback:
-   // TODO
-   ERROR_SET(err, win32, E_NOTIMPL);
+   auto on_client = this->on_client;
+   auto waiterp = waiter;
+
+   // XXX some old versions of Windows seem to corrupt the sockaddr at bind?
+   sockaddr_un_set(&un, path, err);
+   ERROR_CHECK(err);
+
+   windows::CreateLegacyAfUnixServer(
+      waiter.Get(),
+      &un,
+      [waiterp, on_client] (const std::shared_ptr<common::FileHandle> &client, error *err) -> void
+      {
+         try
+         {
+            auto writeFn = std::make_shared<std::function<void(const void*, int, error *)>>();
+            auto writeFnWrapper = [writeFn] (const void *buf, int len, error *err) -> void
+            {
+               (*writeFn)(buf, len, err);
+            };
+            auto sock = std::make_shared<StreamSocket>(writeFnWrapper);
+            windows::BindLegacyAfUnixClient(
+               waiterp.Get(),
+               client,
+               *writeFn.get(),
+               [sock] (const void *buf, int len, error *err) -> void
+               {
+                  sock->on_recv(buf, len, err);
+               },
+               [sock] (error *err) -> void
+               {
+                  sock->on_closed(err);
+               },
+               [sock] (error *err) -> void
+               {
+                  sock->on_error(err);
+               },
+               err
+            );
+            ERROR_CHECK(err);
+
+            on_client(sock, err);
+            ERROR_CHECK(err);
+         }
+         catch (std::bad_alloc)
+         {
+            ERROR_SET(err, nomem);
+         }
+      exit:;
+      },
+      err
+   );
+   ERROR_CHECK(err);
 #endif
 }

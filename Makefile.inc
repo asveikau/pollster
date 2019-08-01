@@ -30,6 +30,10 @@ LIBPOLLSTER_SRC += \
    $(LIBPOLLSTER_ROOT)src/winasync.cc \
    $(LIBPOLLSTER_ROOT)src/win.cc \
    $(LIBPOLLSTER_ROOT)src/winsock.cc
+
+ifdef FORCE_LEGACY_AFUNIX
+LIBPOLLSTER_CXXFLAGS += -DTEST_LEGACY_UNIX_SOCKET
+endif
 else
 LIBPOLLSTER_SRC += \
    $(LIBPOLLSTER_ROOT)src/unix.cc

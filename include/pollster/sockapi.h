@@ -53,7 +53,7 @@ ConnectAsync(
 
 class StreamServer;
 
-class StreamSocket
+class StreamSocket : public std::enable_shared_from_this<StreamSocket>
 {
    common::Pointer<waiter> waiter;
    std::shared_ptr<common::SocketHandle> fd;

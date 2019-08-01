@@ -10,6 +10,10 @@
 #include <pollster/sockapi.h>
 #include <common/c++/lock.h>
 
+#if defined(_WINDOWS)
+#include <pollster/win.h>
+#endif
+
 pollster::StreamSocket::StreamSocket(
    struct waiter *waiter_,
    std::shared_ptr<common::SocketHandle> fd_
@@ -120,6 +124,10 @@ pollster::StreamSocket::ConnectUnixDomain(const char *path)
       ERROR_SET(&err, socket);
    }
 
+#if defined(_WINDOWS) && defined(TEST_LEGACY_UNIX_SOCKET)
+   goto winFallback;
+#endif
+
    if (connect(fd->Get(), sa, socklen(sa)))
    {
 #if defined(_WINDOWS)
@@ -147,8 +155,95 @@ exit:
 #if defined(_WINDOWS)
 winFallback:
    fd->Reset();
-   // TODO
-   ERROR_SET(&err, win32, E_NOTIMPL);
+
+   try
+   {
+      auto rcThis = shared_from_this();
+
+      //
+      // Buffer writes that happen before we have the new writeFn.
+      //
+
+      struct writeState
+      {
+         std::function<void(const void*, int, error *)> newWriter;
+         bool needLock;
+         std::vector<unsigned char> pending;
+         std::mutex lock;
+
+         writeState() : needLock(true) {}
+      };
+      auto writeBuf = std::make_shared<writeState>();
+      writeFn = [writeBuf] (const void *buf, int len, error *err) -> void
+      {
+         common::locker l;
+
+         if (writeBuf->needLock)
+            l.acquire(writeBuf->lock);
+
+         // Do we have a new writer?  If so, re-do.
+         //
+         if (writeBuf->newWriter)
+         {
+            l.release();
+            writeBuf->newWriter(buf, len, err);
+            return;
+         }
+
+         // Nope, buffer the data.
+         //
+         auto &pending = writeBuf->pending;
+         try
+         {
+            pending.insert(pending.end(), (const char*)buf, (const char*)buf+len);
+         }
+         catch (std::bad_alloc)
+         {
+            ERROR_SET(err, nomem);
+         }
+      exit:;
+      };
+      windows::CreateLegacyAfUnixClient(
+         waiter.Get(),
+         &un,
+         [this, rcThis, writeBuf] (const std::shared_ptr<common::FileHandle> &client, error *err) -> void
+         {
+            common::locker l;
+
+            // Assign new writer into temp.
+            //
+            std::function<void(const void *, int, error*)> newWriter;
+
+            windows::BindLegacyAfUnixClient(waiter.Get(), client, newWriter, on_recv, on_closed, on_error, err);
+            ERROR_CHECK(err);
+
+            // Get the lock before flushing buffered stuff and re-assigning writer.
+            //
+            l.acquire(writeBuf->lock);
+
+            if (writeBuf->pending.size())
+            {
+               newWriter(writeBuf->pending.data(), writeBuf->pending.size(), err);
+               ERROR_CHECK(err);
+
+               writeBuf->pending.resize(0);
+               writeBuf->pending.shrink_to_fit();
+            }
+
+            writeBuf->newWriter = std::move(newWriter);
+
+            l.release();
+            writeBuf->needLock = false;
+         exit:;
+         },
+         &err
+      );
+      ERROR_CHECK(&err);
+   }
+   catch (std::bad_alloc)
+   {
+      ERROR_SET(&err, nomem);
+   }
 #endif
 }
 
