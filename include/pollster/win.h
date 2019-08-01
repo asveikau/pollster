@@ -165,6 +165,33 @@ namespace windows
       std::function<void(error *)> on_error,
       std::function<void(DWORD, error *)> on_result
    );
+
+   void
+   CreateLegacyAfUnixServer(
+      waiter *w,
+      struct sockaddr_un *sun,
+      std::function<void (const std::shared_ptr<common::FileHandle> &, error *)> on_client,
+      error *err
+   );
+
+   void
+   CreateLegacyAfUnixClient(
+      waiter *w,
+      struct sockaddr_un *sun,
+      std::function<void (const std::shared_ptr<common::FileHandle> &, error *)> on_client,
+      error *err
+   );
+
+   void
+   BindLegacyAfUnixClient(
+      waiter *w,
+      const std::shared_ptr<common::FileHandle> &hClient,
+      std::function<void(const void *buf, int len, error *err)> &writeFn,
+      std::function<void(const void *, int, error *)> on_recv,
+      std::function<void(error *)> on_closed,
+      std::function<void(error *)> on_error,
+      error *err
+   );
 }
 
 } // end namespace
