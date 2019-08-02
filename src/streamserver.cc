@@ -195,6 +195,46 @@ pollster::StreamServer::AddPort(int port, error *err)
 exit:;
 }
 
+static void
+TryUnlink(const char *path, error *err)
+{
+   if (!path || !*path)
+      return;
+
+#if defined(_WINDOWS)
+   auto path16 = ConvertToPwstr(path, err);
+   ERROR_CHECK(err);
+
+   if (!DeleteFile(path16))
+   {
+      auto error = GetLastError();
+      switch (error)
+      {
+      case ERROR_FILE_NOT_FOUND:
+         break;
+      default:
+         ERROR_SET(err, win32, error);
+      }
+   }
+
+exit:
+   free(path16);
+#else
+   if (unlink(path))
+   {
+      auto error = errno;
+      switch (error)
+      {
+      case ENOENT:
+         break;
+      default:
+         ERROR_SET(err, errno, error);
+      }
+   }
+exit:;
+#endif
+}
+
 void
 pollster::StreamServer::AddUnixDomain(const char *path, error *err)
 {
@@ -218,6 +258,9 @@ pollster::StreamServer::AddUnixDomain(const char *path, error *err)
    ERROR_CHECK(err);
 
    sa = (struct sockaddr*)&un;
+
+   TryUnlink(path, err);
+   ERROR_CHECK(err);
 
    if (bind(fd->Get(), sa, socklen(sa)))
    {
