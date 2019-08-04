@@ -212,7 +212,7 @@ exit:
    if (ERROR_FAILED(err))
    {
       free_fn();
-      free_fn = std::function<void(void)>();
+      free_fn = [] () -> void {};
       sd = nullptr;
    }
    return sd;
