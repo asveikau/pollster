@@ -137,6 +137,12 @@ pollster::StreamSocket::ConnectUnixDomain(const char *path)
       ERROR_SET(&err, socket);
    }
 
+   if (on_connect_progress)
+   {
+      on_connect_progress(ConnectAsyncStatus::Connected, nullptr, &err);
+      ERROR_CHECK(&err);
+   }
+
    set_nonblock(fd->Get(), true, &err);
    ERROR_CHECK(&err);
 
@@ -213,6 +219,12 @@ winFallback:
             // Assign new writer into temp.
             //
             std::function<void(const void *, int, error*)> newWriter;
+
+            if (on_connect_progress)
+            {
+               on_connect_progress(ConnectAsyncStatus::Connected, nullptr, err);
+               ERROR_CHECK(err);
+            }
 
             windows::BindLegacyAfUnixClient(waiter.Get(), client, newWriter, on_recv, on_closed, on_error, err);
             ERROR_CHECK(err);
