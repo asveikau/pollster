@@ -262,7 +262,7 @@ pollster::StreamServer::AddUnixDomain(const char *path, error *err)
 
    sa = (struct sockaddr*)&un;
 
-   TryUnlink(path, err);
+   TryUnlink(un.sun_path, err);
    ERROR_CHECK(err);
 
    if (bind(fd->Get(), sa, socklen(sa)))

@@ -167,6 +167,10 @@ namespace pollster
    {
       sockaddr_set_af((sockaddr*)in6, AF_INET6);
    }
+
+   extern
+   bool
+   AbstractAfUnixSupported;
 }
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__APPLE__)
