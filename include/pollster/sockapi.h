@@ -58,20 +58,35 @@ class StreamSocket : public std::enable_shared_from_this<StreamSocket>
    common::Pointer<waiter> waiter;
    std::shared_ptr<common::SocketHandle> fd;
    common::Pointer<socket_event> sev;
+   struct WriteCompletionNode
+   {
+      size_t len;
+      std::function<void(error*)> callback;
+
+      WriteCompletionNode *next;
+
+      WriteCompletionNode() : len(0), next(nullptr) {}
+      WriteCompletionNode(const WriteCompletionNode &) = delete;
+   };
    struct SharedState
    {
       std::vector<char> writeBuffer;
       std::mutex writeLock;
+      WriteCompletionNode *completionCallbacks;
+
+      SharedState() : completionCallbacks(nullptr) {}
+      SharedState(const SharedState &) = delete;
+      ~SharedState();
    };
    std::shared_ptr<SharedState> state;
-   std::function<void(const void *buf, int len, error *err)> writeFn;
+   std::function<void(const void *buf, int len, std::function<void(error*)> onComplete, error *err)> writeFn;
 public:
    StreamSocket(
       struct waiter *waiter_ = nullptr,
       std::shared_ptr<common::SocketHandle> fd_ = std::make_shared<common::SocketHandle>()
    );
    StreamSocket(
-      std::function<void(const void *buf, int len, error *err)> writeFn
+      std::function<void(const void *buf, int len, std::function<void(error*)> onComplete, error *err)> writeFn
    );
    StreamSocket(const StreamSocket &) = delete;
    ~StreamSocket();
@@ -94,7 +109,7 @@ public:
    ConnectUnixDomain(const char *path);
 
    void
-   Write(const void *buf, int len);
+   Write(const void *buf, int len, std::function<void(error*)> onComplete=std::function<void(error*)>());
 
 private:
    void

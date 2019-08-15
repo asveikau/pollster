@@ -186,7 +186,7 @@ namespace windows
    BindLegacyAfUnixClient(
       waiter *w,
       const std::shared_ptr<common::FileHandle> &hClient,
-      std::function<void(const void *buf, int len, error *err)> &writeFn,
+      std::function<void(const void *buf, int len, std::function<void(error*)> onComplete, error *err)> &writeFn,
       std::function<void(const void *, int, error *)> on_recv,
       std::function<void(error *)> on_closed,
       std::function<void(error *)> on_error,

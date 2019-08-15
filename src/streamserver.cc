@@ -298,10 +298,10 @@ winFallback:
       {
          try
          {
-            auto writeFn = std::make_shared<std::function<void(const void*, int, error *)>>();
-            auto writeFnWrapper = [writeFn] (const void *buf, int len, error *err) -> void
+            auto writeFn = std::make_shared<std::function<void(const void*, int, std::function<void(error*)>, error *)>>();
+            auto writeFnWrapper = [writeFn] (const void *buf, int len, std::function<void(error*)> onComplete, error *err) -> void
             {
-               (*writeFn)(buf, len, err);
+               (*writeFn)(buf, len, onComplete, err);
             };
             auto sock = std::make_shared<StreamSocket>(writeFnWrapper);
             windows::BindLegacyAfUnixClient(

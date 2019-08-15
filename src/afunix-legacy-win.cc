@@ -715,7 +715,7 @@ void
 pollster::windows::BindLegacyAfUnixClient(
    waiter *w,
    const std::shared_ptr<common::FileHandle> &hClient,
-   std::function<void(const void *buf, int len, error *err)> &writeFn,
+   std::function<void(const void *buf, int len, std::function<void(error*)> onComplete, error *err)> &writeFn,
    std::function<void(const void *, int, error *)> on_recv,
    std::function<void(error *)> on_closed,
    std::function<void(error *)> on_error,
@@ -754,7 +754,7 @@ pollster::windows::BindLegacyAfUnixClient(
       ERROR_SET(err, nomem);
    }
 
-   writeFn = [wp, hClient, on_error] (const void *buf, int len, error *err) -> void
+   writeFn = [wp, hClient, on_error] (const void *buf, int len, std::function<void(error*)> onComplete, error *err) -> void
    {
       std::shared_ptr<std::vector<unsigned char>> vec;
 
@@ -775,7 +775,11 @@ pollster::windows::BindLegacyAfUnixClient(
          vec->data(),
          len,
          on_error,
-         [hClient, vec] (DWORD res, error *err) -> void {}
+         [hClient, vec, onComplete] (DWORD res, error *err) -> void
+         {
+            if (onComplete)
+               onComplete(err);
+         }
       );
    exit:
       if (ERROR_FAILED(err) && on_error)

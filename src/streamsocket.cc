@@ -23,7 +23,7 @@ pollster::StreamSocket::StreamSocket(
 }
 
 pollster::StreamSocket::StreamSocket(
-   std::function<void(const void *buf, int len, error *err)> writeFn_
+   std::function<void(const void *buf, int len, std::function<void(error*)> onComplete, error *err)> writeFn_
 )
 : writeFn(writeFn_)
 {
@@ -172,15 +172,16 @@ winFallback:
 
       struct writeState
       {
-         std::function<void(const void*, int, error *)> newWriter;
+         std::function<void(const void*, int, std::function<void(error*)> onComplete, error *)> newWriter;
          bool needLock;
          std::vector<unsigned char> pending;
+         std::vector<std::function<void(error*)>> pendingCallbacks;
          std::mutex lock;
 
          writeState() : needLock(true) {}
       };
       auto writeBuf = std::make_shared<writeState>();
-      writeFn = [writeBuf] (const void *buf, int len, error *err) -> void
+      writeFn = [writeBuf] (const void *buf, int len, std::function<void(error*)> onComplete, error *err) -> void
       {
          common::locker l;
 
@@ -192,7 +193,7 @@ winFallback:
          if (writeBuf->newWriter)
          {
             l.release();
-            writeBuf->newWriter(buf, len, err);
+            writeBuf->newWriter(buf, len, onComplete, err);
             return;
          }
 
@@ -202,6 +203,8 @@ winFallback:
          try
          {
             pending.insert(pending.end(), (const char*)buf, (const char*)buf+len);
+            if (onComplete)
+               writeBuf->pendingCallbacks.push_back(onComplete);
          }
          catch (std::bad_alloc)
          {
@@ -218,7 +221,7 @@ winFallback:
 
             // Assign new writer into temp.
             //
-            std::function<void(const void *, int, error*)> newWriter;
+            std::function<void(const void *, int, std::function<void(error*)> onComplete, error*)> newWriter;
 
             if (on_connect_progress)
             {
@@ -235,7 +238,23 @@ winFallback:
 
             if (writeBuf->pending.size())
             {
-               newWriter(writeBuf->pending.data(), writeBuf->pending.size(), err);
+               newWriter(
+                  writeBuf->pending.data(),
+                  writeBuf->pending.size(),
+                  writeBuf->pendingCallbacks.size() ?
+                     [writeBuf] (error *err) -> void
+                     {
+                        for (auto &cb : writeBuf->pendingCallbacks)
+                        {
+                           cb(err);
+                           ERROR_CHECK(err);
+                        }
+                     exit:
+                        writeBuf->pendingCallbacks.resize(0);
+                        writeBuf->pendingCallbacks.shrink_to_fit();
+                     } : std::function<void(error*)>(),
+                  err
+               );
                ERROR_CHECK(err);
 
                writeBuf->pending.resize(0);
@@ -305,18 +324,50 @@ pollster::StreamSocket::AttachSocket(error *err)
                   int r = 0;
                   common::locker l;
                   auto &writeBuffer = state->writeBuffer;
+                  size_t written = 0;
+                  WriteCompletionNode *first = nullptr;
+                  WriteCompletionNode *n = nullptr;
 
                   l.acquire(state->writeLock);
+
                   while (writeBuffer.size() && (r = send(fd->Get(), writeBuffer.data(), writeBuffer.size(), 0)) > 0)
                   {
+                     written += r;
                      writeBuffer.erase(writeBuffer.begin(), writeBuffer.begin() + r);
+
                      if (!writeBuffer.size())
                      {
                         sev->set_needs_write(false, err);
                         ERROR_CHECK(err);
                      }
                   }
+
+                  for (first = n = state->completionCallbacks; n && written; )
+                  {
+                     auto sub = MIN(n->len, written);
+                     n->len -= sub;
+                     written -= sub;
+                     if (n->len)
+                     {
+                        state->completionCallbacks = n;
+                        break;
+                     }
+                     n = state->completionCallbacks = n->next;
+                  }
+                  if (first && first->len)
+                     first = nullptr;
+
                   l.release();
+
+                  while (first && first != state->completionCallbacks)
+                  {
+                     auto next = first->next;
+                     if (!ERROR_FAILED(err))
+                        first->callback(err);
+                     delete first;
+                     first = next;
+                  }
+                  ERROR_CHECK(err);
 
                   CheckIoError(r, err);
                   ERROR_CHECK(err);
@@ -364,17 +415,29 @@ exit:;
 }
 
 void
-pollster::StreamSocket::Write(const void *buf, int len)
+pollster::StreamSocket::Write(const void *buf, int len, std::function<void(error*)> onComplete)
 {
    error err;
    common::locker l;
    bool was_empty = false;
+   WriteCompletionNode *qn = nullptr;
+
+   if (!len)
+      goto exit;
 
    if (writeFn)
    {
-      writeFn(buf, len, &err);
+      writeFn(buf, len, onComplete, &err);
       ERROR_CHECK(&err);
       goto exit;
+   }
+
+   if (onComplete)
+   {
+      qn = new (std::nothrow) WriteCompletionNode();
+      if (!qn)
+         ERROR_SET(&err, nomem);
+      qn->callback = std::move(onComplete);
    }
 
    l.acquire(state->writeLock);
@@ -394,8 +457,29 @@ pollster::StreamSocket::Write(const void *buf, int len)
       sev->set_needs_write(true, &err);
       ERROR_CHECK(&err);
    }
+
+   if (qn)
+   {
+      WriteCompletionNode **prev = &state->completionCallbacks;
+      WriteCompletionNode *n = *prev;
+
+      qn->len = state->writeBuffer.size();
+
+      while (n && qn->len > n->len)
+      {
+         qn->len -= n->len;
+         prev = &n->next;
+         n = *prev;
+      }
+
+      qn->next = *prev;
+      *prev = qn;
+   }
+
 exit:
    l.release();
+   if (qn)
+      delete qn;
    if (ERROR_FAILED(&err))
    {
       if (on_error)
@@ -405,5 +489,18 @@ exit:
          error innerError;
          sev->remove(&innerError);
       }
+   }
+}
+
+pollster::StreamSocket::SharedState::~SharedState()
+{
+   auto p = completionCallbacks;
+   completionCallbacks = nullptr;
+
+   while (p)
+   {
+      auto q = p->next;
+      delete p;
+      p = q;
    }
 }
