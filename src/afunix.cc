@@ -40,12 +40,8 @@ pollster::sockaddr_un_set(struct sockaddr_un *addr, const char *path, error *err
    {
 #if !HAVE_ABSTRACT_SOCKETS
       char *p = nullptr;
-      heapBuffer = get_private_dir(0, err);
+      heapBuffer = get_private_subdir("sockets", 0, err);
       ERROR_CHECK(err);
-      heapBuffer = append_path(p = heapBuffer, "sockets", err);
-      free(p);
-      ERROR_CHECK(err);
-      secure_mkdir(heapBuffer, err);
       heapBuffer = append_path(p = heapBuffer, path+1, err);
       free(p);
       ERROR_CHECK(err);
