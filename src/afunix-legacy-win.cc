@@ -24,6 +24,7 @@
 #include <pollster/win.h>
 
 #include <common/misc.h>
+#include <common/path.h>
 #include <common/crypto/rng.h>
 #include <string.h>
 
@@ -41,19 +42,34 @@ ConvertPipeName(struct sockaddr_un *sa, error *err)
    const char *pipeName = nullptr;
    const char *prefix = "";
    char *r8 = nullptr;
-   char buf[sizeof(sa->sun_path) + 1] = {0};
+   char *buf = nullptr;
    char *p = nullptr;
 
    pipeName = sa->sun_path;
    if (!*pipeName)
    {
       ++pipeName;
-      prefix = "local-";
+      prefix = "abs-";
+   }
+   else
+   {
+      buf = make_absolute_path(pipeName, err);
+      ERROR_CHECK(err);
+      if (buf)
+         pipeName = buf;
+   }
+
+   // Make writeable copy of path...
+   //
+   if (!buf)
+   {
+      buf = _strdup(pipeName);
+      if (!buf)
+         ERROR_SET(err, nomem);
    }
 
    // Filter out invalid chars
    //
-   memcpy(buf, pipeName, MIN(sizeof(buf)-1, strlen(pipeName)));
    p = buf;
    while ((p = strpbrk(p, ILLEGAL_CHARS)))
    {
@@ -74,6 +90,7 @@ exit:
       r = nullptr;
    }
    free(r8);
+   free(buf);
    return r;
 }
 
