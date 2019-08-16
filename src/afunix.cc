@@ -10,7 +10,8 @@
 #include <common/path.h>
 #include <string.h>
 
-#if defined(__linux__) || defined(_WINDOWS)
+#if defined(__linux__)
+   /* || defined(_WINDOWS) */ /* Microsoft claims to support it, but it doesn't work */
 #define HAVE_ABSTRACT_SOCKETS 1
 #else
 #define HAVE_ABSTRACT_SOCKETS 0
