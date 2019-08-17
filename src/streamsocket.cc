@@ -474,6 +474,7 @@ pollster::StreamSocket::Write(const void *buf, int len, std::function<void(error
 
       qn->next = *prev;
       *prev = qn;
+      qn = nullptr;
    }
 
 exit:
