@@ -14,6 +14,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
 
 using pollster::error_set_gai;
 
