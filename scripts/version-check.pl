@@ -1,6 +1,7 @@
+use strict;
 
-my @a = split('\\.', $ARGV[1]);
-my @b = split('\\.', $ARGV[2]);
+my @a = split('\\.', $ARGV[0]);
+my @b = split('\\.', $ARGV[1]);
 
 sub yield
 {
@@ -11,11 +12,11 @@ sub yield
 
 for (;;)
 {
-   if ($b == 0)
+   if (scalar(@b) == 0)
    {
       yield(1);
    }
-   if ($a == 0)
+   if (scalar(@a) == 0)
    {
       yield(0);
    }
@@ -23,7 +24,7 @@ for (;;)
    my $c = shift @a;
    my $d = shift @b;
 
-   if ($b < $a)
+   if ($c < $d)
    {
       yield(0);
    }
