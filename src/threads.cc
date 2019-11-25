@@ -51,7 +51,7 @@ pollster::thread_helper::initialize(thread_helper_init *args, error *err)
       }
 
       auto q = args->queue;
-      enqueue_work = [q] (std::function<void(error*)> fn, error *err) -> void
+      enqueue_work = [q] (const std::function<void(error*)> &fn, error *err) -> void
       {
          bool shutdown = false;
          q->enqueue_work(fn, shutdown, err);

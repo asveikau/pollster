@@ -29,7 +29,7 @@ pollster::message_queue::~message_queue()
 }
 
 void
-pollster::message_queue::synchronize(std::function<void(void)> op)
+pollster::message_queue::synchronize(const std::function<void(void)> &op)
 {
    common::locker l;
 
@@ -56,7 +56,7 @@ exit:;
 }
 
 bool
-pollster::message_queue::enqueue_work(std::function<void(error*)> func, bool &shutdown, error *err)
+pollster::message_queue::enqueue_work(const std::function<void(error*)> &func, bool &shutdown, error *err)
 {
    common::locker l;
    bool r = false;

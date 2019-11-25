@@ -74,7 +74,7 @@ public:
    // Returns false if thread is shutting down.
    //
    bool
-   enqueue_work(std::function<void(error*)> func, error *err);
+   enqueue_work(const std::function<void(error*)> &func, error *err);
 
    int
    slots_available(void);
@@ -105,7 +105,7 @@ struct win_backend : public waiter
    add_socket(
       const std::shared_ptr<common::SocketHandle> &fd,
       bool write,
-      std::function<void(socket_event*, error *)> initialize,
+      const std::function<void(socket_event*, error *)> &initialize,
       socket_event **ev,
       error *err
    );
@@ -113,7 +113,7 @@ struct win_backend : public waiter
    void
    add_auto_reset_signal(
       bool repeating,
-      std::function<void(auto_reset_signal*, error *)> initialize,
+      const std::function<void(auto_reset_signal*, error *)> &initialize,
       auto_reset_signal **ev,
       error *err
    );
@@ -122,7 +122,7 @@ struct win_backend : public waiter
    add_timer(
       uint64_t millis,
       bool repeating,
-      std::function<void(event*, error *)> initialize,
+      const std::function<void(event*, error *)> &initialize,
       event **ev,
       error *err
    );
@@ -136,8 +136,8 @@ namespace windows
    void
    CreateOverlapped(
       waiter *w,
-      std::function<void (error *)> on_error,
-      std::function<void (DWORD, OVERLAPPED*, error *)> on_result,
+      const std::function<void (error *)> &on_error,
+      const std::function<void (DWORD, OVERLAPPED*, error *)> &on_result,
       OVERLAPPED **res,
       LPOVERLAPPED_COMPLETION_ROUTINE *fn,
       error *err
@@ -149,28 +149,28 @@ namespace windows
    void
    ReadFileAsync(
       waiter *w,
-      std::shared_ptr<common::FileHandle> file,
+      const std::shared_ptr<common::FileHandle> &file,
       void *buffer,
       DWORD len,
-      std::function<void(error *)> on_error,
-      std::function<void(DWORD, error *)> on_result
+      const std::function<void(error *)> &on_error,
+      const std::function<void(DWORD, error *)> &on_result
    );
 
    void
    WriteFileAsync(
       waiter *w,
-      std::shared_ptr<common::FileHandle> file,
+      const std::shared_ptr<common::FileHandle> &file,
       const void *buffer,
       DWORD len,
-      std::function<void(error *)> on_error,
-      std::function<void(DWORD, error *)> on_result
+      const std::function<void(error *)> &on_error,
+      const std::function<void(DWORD, error *)> &on_result
    );
 
    void
    CreateLegacyAfUnixServer(
       waiter *w,
       struct sockaddr_un *sun,
-      std::function<void (const std::shared_ptr<common::FileHandle> &, error *)> on_client,
+      const std::function<void (const std::shared_ptr<common::FileHandle> &, error *)> &on_client,
       error *err
    );
 
@@ -178,7 +178,7 @@ namespace windows
    CreateLegacyAfUnixClient(
       waiter *w,
       struct sockaddr_un *sun,
-      std::function<void (const std::shared_ptr<common::FileHandle> &, error *)> on_client,
+      const std::function<void (const std::shared_ptr<common::FileHandle> &, error *)> &on_client,
       error *err
    );
 
@@ -186,15 +186,14 @@ namespace windows
    BindLegacyAfUnixClient(
       waiter *w,
       const std::shared_ptr<common::FileHandle> &hClient,
-      std::function<void(const void *buf, int len, std::function<void(error*)> onComplete, error *err)> &writeFn,
-      std::function<void(const void *, int, error *)> on_recv,
-      std::function<void(error *)> on_closed,
-      std::function<void(error *)> on_error,
+      std::function<void(const void *buf, int len, const std::function<void(error*)> &onComplete, error *err)> &writeFn,
+      const std::function<void(const void *, int, error *)> &on_recv,
+      const std::function<void(error *)> &on_closed,
+      const std::function<void(error *)> &on_error,
       error *err
    );
 }
 
 } // end namespace
-
 
 #endif

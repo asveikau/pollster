@@ -98,28 +98,28 @@ exit:
 
 static void
 AfUnixServerLoop(
-   common::Pointer<pollster::waiter> w,
-   std::shared_ptr<common::FileHandle> pipe,
-   std::wstring pipeName,
-   std::function<void (const std::shared_ptr<common::FileHandle> &, error *)> on_client,
+   const common::Pointer<pollster::waiter> &w,
+   const std::shared_ptr<common::FileHandle> &pipe,
+   const std::wstring &pipeName,
+   const std::function<void (const std::shared_ptr<common::FileHandle> &, error *)> &on_client,
    error *err
 );
 
 static void
 WaitForClient(
-   common::Pointer<pollster::waiter> w,
-   std::shared_ptr<common::FileHandle> pipe,
-   std::function<void(error *err)> onConnect,
+   const common::Pointer<pollster::waiter> &w,
+   const std::shared_ptr<common::FileHandle> &pipe,
+   const std::function<void(error *err)> &onConnect,
    error *err
 );
 
 static void
 AfUnixServerHelloWritten(
-   common::Pointer<pollster::waiter> w,
-   std::shared_ptr<common::FileHandle> pipe,
-   std::wstring pipeName,
-   std::shared_ptr<common::FileHandle> childPipe,
-   std::function<void (const std::shared_ptr<common::FileHandle> &, error *)> on_client,
+   const common::Pointer<pollster::waiter> &w,
+   const std::shared_ptr<common::FileHandle> &pipe,
+   const std::wstring &pipeName,
+   const std::shared_ptr<common::FileHandle> &childPipe,
+   const std::function<void (const std::shared_ptr<common::FileHandle> &, error *)> &on_client,
    error *err
 )
 {
@@ -302,10 +302,10 @@ CreateNamedPipe(
 
 static void
 AfUnixServerConnected(
-   common::Pointer<pollster::waiter> w,
-   std::shared_ptr<common::FileHandle> pipe,
-   std::wstring pipeName,
-   std::function<void (const std::shared_ptr<common::FileHandle> &, error *)> on_client,
+   const common::Pointer<pollster::waiter> &w,
+   const std::shared_ptr<common::FileHandle> &pipe,
+   const std::wstring &pipeName,
+   const std::function<void (const std::shared_ptr<common::FileHandle> &, error *)> &on_client,
    error *err
 )
 {
@@ -433,9 +433,9 @@ exit:
 
 static void
 WaitForClient(
-   common::Pointer<pollster::waiter> w,
-   std::shared_ptr<common::FileHandle> pipe,
-   std::function<void(error *err)> onConnect,
+   const common::Pointer<pollster::waiter> &w,
+   const std::shared_ptr<common::FileHandle> &pipe,
+   const std::function<void(error *err)> &onConnect,
    error *err
 )
 {
@@ -481,10 +481,10 @@ exit:
 
 static void
 AfUnixServerLoop(
-   common::Pointer<pollster::waiter> w,
-   std::shared_ptr<common::FileHandle> pipe,
-   std::wstring pipeName,
-   std::function<void (const std::shared_ptr<common::FileHandle> &, error *)> on_client,
+   const common::Pointer<pollster::waiter> &w,
+   const std::shared_ptr<common::FileHandle> &pipe,
+   const std::wstring &pipeName,
+   const std::function<void (const std::shared_ptr<common::FileHandle> &, error *)> &on_client,
    error *err
 )
 {
@@ -506,7 +506,7 @@ void
 pollster::windows::CreateLegacyAfUnixServer(
    waiter *w,
    struct sockaddr_un *sun,
-   std::function<void (const std::shared_ptr<common::FileHandle> &, error *)> on_client,
+   const std::function<void (const std::shared_ptr<common::FileHandle> &, error *)> &on_client,
    error *err
 )
 {
@@ -552,12 +552,12 @@ exit:
 
 static void
 AfUnixClientHello(
-   common::Pointer<pollster::waiter> w,
+   const common::Pointer<pollster::waiter> &w,
    const void *buffer,
    int len,
-   std::shared_ptr<common::FileHandle> pipe,
+   const std::shared_ptr<common::FileHandle> &pipe,
    const std::wstring &pipeName,
-   std::function<void (const std::shared_ptr<common::FileHandle> &, error *)> on_client,
+   const std::function<void (const std::shared_ptr<common::FileHandle> &, error *)> &on_client,
    error *err
 )
 {
@@ -617,7 +617,7 @@ void
 pollster::windows::CreateLegacyAfUnixClient(
    waiter *w,
    struct sockaddr_un *sun,
-   std::function<void (const std::shared_ptr<common::FileHandle> &, error *)> on_client,
+   const std::function<void (const std::shared_ptr<common::FileHandle> &, error *)> &on_client,
    error *err
 )
 {
@@ -732,15 +732,16 @@ void
 pollster::windows::BindLegacyAfUnixClient(
    waiter *w,
    const std::shared_ptr<common::FileHandle> &hClient,
-   std::function<void(const void *buf, int len, std::function<void(error*)> onComplete, error *err)> &writeFn,
-   std::function<void(const void *, int, error *)> on_recv,
-   std::function<void(error *)> on_closed,
-   std::function<void(error *)> on_error,
+   std::function<void(const void *buf, int len, const std::function<void(error*)> &onComplete, error *err)> &writeFn,
+   const std::function<void(const void *, int, error *)> &on_recv,
+   const std::function<void(error *)> &on_closed,
+   const std::function<void(error *)> &on_error_,
    error *err
 )
 {
    common::Pointer<waiter> wp = w;
    std::shared_ptr<std::vector<unsigned char>> buf;
+   auto on_error = on_error_;
 
    try
    {
@@ -771,7 +772,7 @@ pollster::windows::BindLegacyAfUnixClient(
       ERROR_SET(err, nomem);
    }
 
-   writeFn = [wp, hClient, on_error] (const void *buf, int len, std::function<void(error*)> onComplete, error *err) -> void
+   writeFn = [wp, hClient, on_error] (const void *buf, int len, const std::function<void(error*)> &onComplete, error *err) -> void
    {
       std::shared_ptr<std::vector<unsigned char>> vec;
 

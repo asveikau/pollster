@@ -27,8 +27,8 @@ GetAddrInfoAsync(
    const char *host,
    const char *service,
    struct addrinfo *hint,
-   std::function<void(const std::shared_ptr<struct addrinfo> &, error *)> onResult,
-   std::function<void(error *)> onError
+   const std::function<void(const std::shared_ptr<struct addrinfo> &, error *)> &onResult,
+   const std::function<void(error *)> &onError
 );
 
 enum ConnectAsyncStatus
@@ -46,9 +46,9 @@ ConnectAsync(
    pollster::waiter *waiter, // can be nullptr for default
    const char *host,
    const char *service,
-   std::function<void(ConnectAsyncStatus, const char *, error *)> onProgress,
-   std::function<void(const std::shared_ptr<common::SocketHandle> &, error *)> onResult,
-   std::function<void(error *)> onError
+   const std::function<void(ConnectAsyncStatus, const char *, error *)> &onProgress,
+   const std::function<void(const std::shared_ptr<common::SocketHandle> &, error *)> &onResult,
+   const std::function<void(error *)> &onError
 );
 
 class StreamServer;
@@ -79,14 +79,14 @@ class StreamSocket : public std::enable_shared_from_this<StreamSocket>
       ~SharedState();
    };
    std::shared_ptr<SharedState> state;
-   std::function<void(const void *buf, int len, std::function<void(error*)> onComplete, error *err)> writeFn;
+   std::function<void(const void *buf, int len, const std::function<void(error*)> &onComplete, error *err)> writeFn;
 public:
    StreamSocket(
       struct waiter *waiter_ = nullptr,
       std::shared_ptr<common::SocketHandle> fd_ = std::make_shared<common::SocketHandle>()
    );
    StreamSocket(
-      std::function<void(const void *buf, int len, std::function<void(error*)> onComplete, error *err)> writeFn
+      const std::function<void(const void *buf, int len, const std::function<void(error*)> &onComplete, error *err)> &writeFn
    );
    StreamSocket(const StreamSocket &) = delete;
    ~StreamSocket();
@@ -109,7 +109,7 @@ public:
    ConnectUnixDomain(const char *path);
 
    void
-   Write(const void *buf, int len, std::function<void(error*)> onComplete=std::function<void(error*)>());
+   Write(const void *buf, int len, const std::function<void(error*)> &onComplete=std::function<void(error*)>());
 
 private:
    void

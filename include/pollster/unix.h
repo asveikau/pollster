@@ -41,7 +41,7 @@ struct unix_backend : public waiter
    add_socket(
       const std::shared_ptr<common::SocketHandle> &fd,
       bool write,
-      std::function<void(socket_event *, error *)> initialize,
+      const std::function<void(socket_event *, error *)> &initialize,
       socket_event **ev,
       error *err
    );
@@ -49,7 +49,7 @@ struct unix_backend : public waiter
    void
    add_auto_reset_signal(
       bool repeating,
-      std::function<void(auto_reset_signal *, error *)> initialize,
+      const std::function<void(auto_reset_signal *, error *)> &initialize,
       auto_reset_signal **ev,
       error *err
    );
@@ -58,7 +58,7 @@ struct unix_backend : public waiter
    add_timer(
       uint64_t millis,
       bool repeating,
-      std::function<void(event *, error *)> initialize,
+      const std::function<void(event *, error *)> &initialize,
       event **ev,
       error *err
    );

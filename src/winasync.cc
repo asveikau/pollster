@@ -55,8 +55,8 @@ namespace
 void
 pollster::windows::CreateOverlapped(
    waiter *w,
-   std::function<void (error *)> on_error,
-   std::function<void (DWORD, OVERLAPPED*, error *)> on_result,
+   const std::function<void (error *)> &on_error,
+   const std::function<void (DWORD, OVERLAPPED*, error *)> &on_result,
    OVERLAPPED **res,
    LPOVERLAPPED_COMPLETION_ROUTINE *fn,
    error *err
@@ -132,12 +132,12 @@ template<typename T1, typename T2>
 void
 ReadWrite(
    pollster::waiter *w,
-   std::shared_ptr<common::FileHandle> &file,
+   const std::shared_ptr<common::FileHandle> &file,
    T1 op,
    T2 buffer,
    DWORD len,
-   std::function<void(error *)> &on_error,
-   std::function<void(DWORD, error *)> &on_result
+   const std::function<void(error *)> &on_error,
+   const std::function<void(DWORD, error *)> &on_result
 )
 {
    OVERLAPPED *ol = nullptr;
@@ -189,11 +189,11 @@ exit:
 void
 pollster::windows::ReadFileAsync(
    pollster::waiter *w,
-   std::shared_ptr<common::FileHandle> file,
+   const std::shared_ptr<common::FileHandle> &file,
    void *buffer,
    DWORD len,
-   std::function<void(error *)> on_error,
-   std::function<void(DWORD, error *)> on_result
+   const std::function<void(error *)> &on_error,
+   const std::function<void(DWORD, error *)> &on_result
 )
 {
    ReadWrite(w, file, ReadFileEx, buffer, len, on_error, on_result);
@@ -202,11 +202,11 @@ pollster::windows::ReadFileAsync(
 void
 pollster::windows::WriteFileAsync(
    pollster::waiter *w,
-   std::shared_ptr<common::FileHandle> file,
+   const std::shared_ptr<common::FileHandle> &file,
    const void *buffer,
    DWORD len,
-   std::function<void(error *)> on_error,
-   std::function<void(DWORD, error *)> on_result
+   const std::function<void(error *)> &on_error,
+   const std::function<void(DWORD, error *)> &on_result
 )
 {
    ReadWrite(w, file, WriteFileEx, buffer, len, on_error, on_result);

@@ -25,7 +25,7 @@ static void
 add_stdin(
    Pointer<waiter> waiter,
    Pointer<auto_reset_signal> stop,
-   std::function<void(const void*, size_t, error *)> write_fn,
+   const std::function<void(const void*, size_t, error *)> &write_fn,
    error *err
 );
 
@@ -255,7 +255,7 @@ static void
 add_stdin(
    Pointer<waiter> waiter,
    Pointer<auto_reset_signal> stop,
-   std::function<void(const void*, size_t, error *)> write_fn,
+   const std::function<void(const void*, size_t, error *)> &write_fn,
    error *err
 )
 {

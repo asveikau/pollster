@@ -9,14 +9,15 @@ pollster::ConnectAsync(
    pollster::waiter *waiterp,
    const char *host,
    const char *service,
-   std::function<void(ConnectAsyncStatus, const char *, error *)> onProgress,
-   std::function<void(const std::shared_ptr<common::SocketHandle> &, error *)> onResult,
-   std::function<void(error *)> onError
+   const std::function<void(ConnectAsyncStatus, const char *, error *)> &onProgress,
+   const std::function<void(const std::shared_ptr<common::SocketHandle> &, error *)> &onResult_,
+   const std::function<void(error *)> &onError
 )
 {
    common::Pointer<waiter> waiter;
    addrinfo hint = {0};
    error err;
+   auto onResult = onResult_;
 
    socket_startup(&err);
    ERROR_CHECK(&err);

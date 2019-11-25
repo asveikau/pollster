@@ -26,8 +26,8 @@ pollster::GetAddrInfoAsync(
    const char *host_,
    const char *service_,
    struct addrinfo *hint_,
-   std::function<void(const std::shared_ptr<struct addrinfo> &, error *err)> onResult,
-   std::function<void(error *)> onError
+   const std::function<void(const std::shared_ptr<struct addrinfo> &, error *err)> &onResult,
+   const std::function<void(error *)> &onError
 )
 {
    error err;

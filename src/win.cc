@@ -239,7 +239,7 @@ void
 pollster::win_backend::add_socket(
    const std::shared_ptr<common::SocketHandle> &fd,
    bool write,
-   std::function<void(socket_event *, error *)> initialize,
+   const std::function<void(socket_event *, error *)> &initialize,
    socket_event **ev,
    error *err
 )
@@ -269,7 +269,7 @@ exit:
 void
 pollster::win_backend::add_auto_reset_signal(
    bool repeating,
-   std::function<void(auto_reset_signal*, error *)> initialize,
+   const std::function<void(auto_reset_signal*, error *)> &initialize,
    auto_reset_signal **ev,
    error *err
 )
@@ -313,7 +313,7 @@ void
 pollster::win_backend::add_timer(
    uint64_t millis,
    bool repeating,
-   std::function<void(event*, error*)> initialize,
+   const std::function<void(event*, error*)> &initialize,
    event **ev,
    error *err
 )
@@ -507,7 +507,7 @@ pollster::wait_loop::ThreadProcStatic(PVOID thisp)
 }
 
 bool
-pollster::wait_loop::enqueue_work(std::function<void(error*)> func, error *err)
+pollster::wait_loop::enqueue_work(const std::function<void(error*)> &func, error *err)
 {
    bool r = false;
 

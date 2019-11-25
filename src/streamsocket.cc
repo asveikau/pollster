@@ -23,7 +23,7 @@ pollster::StreamSocket::StreamSocket(
 }
 
 pollster::StreamSocket::StreamSocket(
-   std::function<void(const void *buf, int len, std::function<void(error*)> onComplete, error *err)> writeFn_
+   const std::function<void(const void *buf, int len, const std::function<void(error*)> &onComplete, error *err)> &writeFn_
 )
 : writeFn(writeFn_)
 {
@@ -172,7 +172,7 @@ winFallback:
 
       struct writeState
       {
-         std::function<void(const void*, int, std::function<void(error*)> onComplete, error *)> newWriter;
+         std::function<void(const void*, int, const std::function<void(error*)> &onComplete, error *)> newWriter;
          bool needLock;
          std::vector<unsigned char> pending;
          std::vector<std::function<void(error*)>> pendingCallbacks;
@@ -181,7 +181,7 @@ winFallback:
          writeState() : needLock(true) {}
       };
       auto writeBuf = std::make_shared<writeState>();
-      writeFn = [writeBuf] (const void *buf, int len, std::function<void(error*)> onComplete, error *err) -> void
+      writeFn = [writeBuf] (const void *buf, int len, const std::function<void(error*)> &onComplete, error *err) -> void
       {
          common::locker l;
 
@@ -221,7 +221,7 @@ winFallback:
 
             // Assign new writer into temp.
             //
-            std::function<void(const void *, int, std::function<void(error*)> onComplete, error*)> newWriter;
+            std::function<void(const void *, int, const std::function<void(error*)> &onComplete, error*)> newWriter;
 
             if (on_connect_progress)
             {
@@ -415,7 +415,7 @@ exit:;
 }
 
 void
-pollster::StreamSocket::Write(const void *buf, int len, std::function<void(error*)> onComplete)
+pollster::StreamSocket::Write(const void *buf, int len, const std::function<void(error*)> &onComplete)
 {
    error err;
    common::locker l;

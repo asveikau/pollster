@@ -33,10 +33,10 @@ public:
    initialize(error *err);
 
    void
-   synchronize(std::function<void(void)> op);
+   synchronize(const std::function<void(void)> &op);
 
    bool
-   enqueue_work(std::function<void(error*)> func, bool &shutdown, error *err);
+   enqueue_work(const std::function<void(error*)> &func, bool &shutdown, error *err);
 
    void
    drain(error *err);
