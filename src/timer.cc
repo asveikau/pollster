@@ -56,7 +56,7 @@ pollster::timer::insert(timer_node *r, error *err)
 
    auto prev = &head;
 
-   while ((*prev) && (*prev)->pendingMillis > r->pendingMillis)
+   while ((*prev) && (*prev)->pendingMillis < r->pendingMillis)
    {
       r->pendingMillis -= (*prev)->pendingMillis;
       prev = &((*prev)->next);
@@ -64,6 +64,11 @@ pollster::timer::insert(timer_node *r, error *err)
 
    r->prev = prev;
    r->next = *prev;
+   if (r->next)
+   {
+      r->next->prev = &r->next;
+      r->next->pendingMillis -= r->pendingMillis;
+   }
    *prev = r;
 }
 
