@@ -227,6 +227,23 @@ set_common_queue(
    waiter *w
 );
 
+// Helper function for timers.
+//
+void
+sleep(
+   waiter *w,
+   uint64_t millis,
+   const std::function<void(error*)> &fn,
+   error *err
+);
+
+static inline
+void
+sleep(uint64_t millis, const std::function<void(error *)> &fn, error *err)
+{
+   sleep(nullptr, millis, fn, err);
+}
+
 } // end namespace
 
 #endif
