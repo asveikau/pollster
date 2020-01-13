@@ -51,6 +51,40 @@ ConnectAsync(
    const std::function<void(error *)> &onError
 );
 
+struct FilterEvents
+{
+   FilterEvents() {}
+   FilterEvents(const FilterEvents &) = delete;
+   virtual ~FilterEvents() {}
+
+   virtual void
+   OnAsyncError(error *err) {}
+
+   virtual void
+   OnBytesToWrite(const void *buf, int len, const std::function<void(error*)> &onComplete) = 0;
+
+   virtual void
+   OnBytesReceived(const void *buf, int len, error *err) = 0;
+};
+
+struct Filter
+{
+   Filter() {}
+   Filter(const Filter &) = delete;
+   virtual ~Filter() {}
+
+   virtual void
+   Write(const void *buf, int len, const std::function<void(error*)> &onComplete) = 0;
+
+   virtual void
+   OnBytesReceived(const void *buf, int len, error *err) = 0;
+
+   virtual void
+   OnEof() {};
+
+   std::shared_ptr<FilterEvents> Events;
+};
+
 class StreamServer;
 
 class StreamSocket : public std::enable_shared_from_this<StreamSocket>
@@ -91,6 +125,8 @@ public:
    StreamSocket(const StreamSocket &) = delete;
    ~StreamSocket();
 
+   std::shared_ptr<Filter> filter;
+
    std::function<void(ConnectAsyncStatus, const char *, error *)> on_connect_progress;
    std::function<void(error *)> on_error;
    std::function<void(const void *, int, error *)> on_recv;
@@ -114,6 +150,21 @@ public:
 private:
    void
    AttachSocket(error *err);
+
+   void
+   OnWriteRequested(const void *buf, int len, const std::function<void(error*)> &onComplete);
+
+   void
+   OnBytesReceived(const void *buf, int len, error *err);
+
+   void
+   OnAsyncError(error *err);
+
+   void
+   OnClosed(error *err);
+
+   bool
+   CheckFilter(error *err);
 
    friend class StreamServer;
 };
