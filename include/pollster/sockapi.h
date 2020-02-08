@@ -80,10 +80,22 @@ struct Filter
    OnBytesReceived(const void *buf, int len, error *err) = 0;
 
    virtual void
-   OnEof() {};
+   OnEof() {}
 
    std::shared_ptr<FilterEvents> Events;
+
+   virtual void
+   OnEventsInitialized(error *err) {}
 };
+
+// TODO: needs more parameters
+// [client cert, server keys]
+void
+CreateSslFilter(
+   bool server,
+   std::shared_ptr<Filter> &res,
+   error *err
+);
 
 class StreamServer;
 
@@ -127,6 +139,9 @@ public:
 
    std::shared_ptr<Filter> filter;
 
+   bool
+   CheckFilter(error *err);
+
    std::function<void(ConnectAsyncStatus, const char *, error *)> on_connect_progress;
    std::function<void(error *)> on_error;
    std::function<void(const void *, int, error *)> on_recv;
@@ -162,9 +177,6 @@ private:
 
    void
    OnClosed(error *err);
-
-   bool
-   CheckFilter(error *err);
 
    friend class StreamServer;
 };

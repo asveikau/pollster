@@ -633,6 +633,9 @@ pollster::StreamSocket::CheckFilter(error *err)
             err
          );
          ERROR_CHECK(err);
+
+         filter->OnEventsInitialized(err);
+         ERROR_CHECK(err);
       }
    }
 exit:

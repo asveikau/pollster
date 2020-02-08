@@ -78,6 +78,10 @@ HAVE_DEV_POLL:=y
 endif # Solaris 8
 endif # Solaris
 
+ifneq (, $(filter $(shell echo $(PLATFORM) | sed s/.*bsd$$/bsd/),linux bsd sunos))
+USE_OPENSSL:=y
+endif
+
 ifdef HAVE_EVENT_PORT
 LIBPOLLSTER_SRC += \
    $(LIBPOLLSTER_ROOT)src/eventport.cc
@@ -99,6 +103,17 @@ endif
 ifndef HAS_GAI_IMPL
 LIBPOLLSTER_SRC += \
    $(LIBPOLLSTER_ROOT)src/getaddrinfo.cc
+endif
+
+ifdef USE_OPENSSL
+ifeq ($(PLATFORM), darwin)
+# This is where MacPorts puts it.  Probably not widespread.
+LIBPOLLSTER_CFLAGS += -I/opt/local/include
+LDFLAGS += -L/opt/local/lib
+endif
+LIBPOLLSTER_SRC += \
+   $(LIBPOLLSTER_ROOT)src/openssl.cc
+LDFLAGS += -lssl -lcrypto
 endif
 
 LIBPOLLSTER_OBJS := $(shell $(SRC2OBJ) $(LIBPOLLSTER_SRC))
