@@ -13,9 +13,11 @@
 
 #include <openssl/ssl.h>
 #include <openssl/conf.h>
+#include <openssl/err.h>
 #include <openssl/opensslv.h>
 
 #include <limits.h>
+#include <string.h>
 
 #include <vector>
 
@@ -29,6 +31,28 @@ namespace {
 #define TLS_client_method SSLv23_client_method
 #define TLS_server_method SSLv23_server_method
 #endif
+
+void
+error_set_openssl(error *err, int code)
+{
+   error_clear(err);
+   memcpy(&err->source, "ossl", MIN(sizeof(err->source), 4));
+   err->code = code;
+   err->get_string = [] (error *err) -> const char *
+   {
+      if (!err->context)
+      {
+         char buf[256]; // documented size in ERR_error_string manpage.
+         if (ERR_error_string(err->code, buf))
+         {
+            err->context = strdup(buf);
+            if (err->context)
+               err->free_fn = [] (void *p) -> void { free(p); };
+         }
+      }
+      return (const char*)err->context;
+   };
+}
 
 void
 init_library(error *err)
@@ -364,7 +388,7 @@ struct OpenSslFilter : public pollster::Filter
                case SSL_ERROR_WANT_WRITE:
                   break;
                default:
-                  ERROR_SET(err, unknown, "SSL error");
+                  ERROR_SET(err, openssl, code);
                }
             }
          exit:;
@@ -544,7 +568,7 @@ struct OpenSslFilter : public pollster::Filter
             }
             break;
          default:
-            ERROR_SET(err, unknown, "SSL error");
+            ERROR_SET(err, openssl, code);
          }
       }
    exit:;
@@ -582,7 +606,7 @@ struct OpenSslFilter : public pollster::Filter
             case SSL_ERROR_WANT_WRITE:
                break;
             default:
-               ERROR_SET(err, unknown, "SSL error");
+               ERROR_SET(err, openssl, code);
             }
          }
       }
