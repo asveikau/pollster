@@ -110,6 +110,9 @@ ifeq ($(PLATFORM), darwin)
 # This is where MacPorts puts it.  Probably not widespread.
 LIBPOLLSTER_CFLAGS += -I/opt/local/include
 LDFLAGS += -L/opt/local/lib
+# On yet another of my machines, pkgin puts it here.
+LIBPOLLSTER_CFLAGS += -I/opt/pkg/include
+LDFLAGS += -L/opt/pkg/lib
 endif
 LIBPOLLSTER_SRC += \
    $(LIBPOLLSTER_ROOT)src/openssl.cc
