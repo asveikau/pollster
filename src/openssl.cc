@@ -422,11 +422,12 @@ struct OpenSslFilter : public pollster::Filter
    exit:;
    }
 
-   void
+   bool
    TryCiphertextWrite(error *err)
    {
       size_t pending = 0;
       const int bufsz = 4096;
+      bool found = false;
 
       while ((pending = MIN(bufsz, BIO_ctrl_pending(networkBio))))
       {
@@ -451,6 +452,7 @@ struct OpenSslFilter : public pollster::Filter
 
                      Events->OnBytesToWrite(buf, *out, cb);
                   }
+                  found = true;
                }
                else if (!BIO_should_retry(networkBio))
                {
@@ -467,7 +469,8 @@ struct OpenSslFilter : public pollster::Filter
          );
          ERROR_CHECK(err);
       }
-   exit:;
+   exit:
+      return found;
    }
 
    void
@@ -548,6 +551,7 @@ struct OpenSslFilter : public pollster::Filter
       else
       {
          int code = SSL_get_error(ssl, r);
+         bool found = false;
          switch (code)
          {
          case SSL_ERROR_WANT_READ:
@@ -574,15 +578,17 @@ struct OpenSslFilter : public pollster::Filter
          // Newer OpenSSL doesn't need it.
          //
          case SSL_ERROR_SYSCALL:
-            TryCiphertextWrite(err);
+            found = TryCiphertextWrite(err);
             ERROR_CHECK(err);
-            TryPendingReads(err);
+            found |= TryPendingReads(err);
             ERROR_CHECK(err);
             if (!retried)
             {
                retried = true;
                goto retry;
             }
+            if (!found)
+               break;
             // fall through
          default:
             ERROR_SET(err, openssl, code);
@@ -630,15 +636,17 @@ struct OpenSslFilter : public pollster::Filter
    exit:;
    }
 
-   void
+   bool
    TryPendingReads(error *err)
    {
       if (pendingRead.size())
       {
          OnBytesReceived(nullptr, 0, err);
          ERROR_CHECK(err);
+         return true;
       }
-   exit:;
+   exit:
+      return false;
    }
 
    void
