@@ -27,7 +27,8 @@ namespace {
 #define SSL_MODE_ASYNC    0
 #endif
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#if OPENSSL_VERSION_NUMBER < 0x10100000L && \
+   (!defined(LIBRESSL_VERSION_NUMBER) || LIBRESSL_VERSION_NUMBER < 0x2090300fL)
 #define TLS_client_method SSLv23_client_method
 #define TLS_server_method SSLv23_server_method
 #endif
