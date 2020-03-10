@@ -568,6 +568,22 @@ struct OpenSslFilter : public pollster::Filter
                goto retry;
             }
             break;
+
+         // Seems to be an issue with older OpenSSL or libressl,
+         // perhaps specific to the way we're using BIO.
+         // Newer OpenSSL doesn't need it.
+         //
+         case SSL_ERROR_SYSCALL:
+            TryCiphertextWrite(err);
+            ERROR_CHECK(err);
+            TryPendingReads(err);
+            ERROR_CHECK(err);
+            if (!retried)
+            {
+               retried = true;
+               goto retry;
+            }
+            // fall through
          default:
             ERROR_SET(err, openssl, code);
          }
