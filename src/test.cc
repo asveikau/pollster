@@ -32,6 +32,7 @@ add_stdin(
 static void
 add_socket(
    const std::shared_ptr<pollster::StreamSocket> &sock,
+   bool ssl,
    const std::function<void(error *)> &onError,
    error *err
 );
@@ -43,6 +44,9 @@ static void
 usage()
 {
    fprintf(stderr, "usage: test [-tcpclient host port] [-tcpserver port] "
+#if defined(HAVE_SSL)
+                               "[-tlsclient host port] "
+#endif
                                "[-unixclient path] [-unixserver path] "
                    "\n");
    exit(1);
@@ -93,7 +97,10 @@ main(int argc, char **argv)
    {
       for (int i = 1; i<argc; ++i)
       {
-         if (!strcmp(argv[i], "-tcpclient"))
+         bool ssl = false;
+
+         if (!strcmp(argv[i], "-tcpclient") ||
+             (ssl = !strcmp(argv[i], "-tlsclient")))
          {
             if (i+2 >= argc)
                usage();
@@ -103,7 +110,7 @@ main(int argc, char **argv)
             const char *host = argv[++i];
             const char *port = argv[++i];
             auto sock = std::make_shared<pollster::StreamSocket>();
-            add_socket(sock, onError, &err);
+            add_socket(sock, ssl, onError, &err);
             ERROR_CHECK(&err);
 
             ops.push_back(
@@ -122,7 +129,7 @@ main(int argc, char **argv)
 
             const char *path = argv[++i];
             auto sock = std::make_shared<pollster::StreamSocket>();
-            add_socket(sock, onError, &err);
+            add_socket(sock, false, onError, &err);
             ERROR_CHECK(&err);
 
             ops.push_back(
@@ -151,7 +158,7 @@ main(int argc, char **argv)
                {
                   log_printf("server: got client\n");
 
-                  add_socket(fd, onError, err);
+                  add_socket(fd, false, onError, err);
                };
             }
 
@@ -207,10 +214,22 @@ exit:
 static void
 add_socket(
    const std::shared_ptr<pollster::StreamSocket> &sock,
+   bool ssl,
    const std::function<void(error *)> &onError,
    error *err
 )
 {
+   if (ssl)
+   {
+#if !defined(HAVE_SSL)
+      ERROR_SET(err, unknown, "TLS not supported by library");
+#else
+      pollster::CreateSslFilter(false, sock->filter, err);
+      ERROR_CHECK(err);
+      sock->CheckFilter(err);
+      ERROR_CHECK(err);
+#endif
+   }
    try
    {
       auto sockWeak = sock.get();

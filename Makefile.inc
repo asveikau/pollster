@@ -117,6 +117,7 @@ endif
 LIBPOLLSTER_SRC += \
    $(LIBPOLLSTER_ROOT)src/openssl.cc
 LDFLAGS += -lssl -lcrypto
+LIBPOLLSTER_CFLAGS += -DHAVE_SSL
 endif
 
 LIBPOLLSTER_OBJS := $(shell $(SRC2OBJ) $(LIBPOLLSTER_SRC))
