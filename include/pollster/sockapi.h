@@ -1,5 +1,5 @@
 /*
- Copyright (C) 2018-2019 Andrew Sveikauskas
+ Copyright (C) 2018-2020 Andrew Sveikauskas
 
  Permission to use, copy, modify, and distribute this software for any
  purpose with or without fee is hereby granted, provided that the above
@@ -13,6 +13,7 @@
 #include <common/c++/refcount.h>
 
 #include <pollster/pollster.h>
+#include <pollster/filter.h>
 
 #include <functional>
 #include <memory>
@@ -50,43 +51,6 @@ ConnectAsync(
    const std::function<void(const std::shared_ptr<common::SocketHandle> &, error *)> &onResult,
    const std::function<void(error *)> &onError
 );
-
-struct FilterEvents
-{
-   FilterEvents() {}
-   FilterEvents(const FilterEvents &) = delete;
-   virtual ~FilterEvents() {}
-
-   virtual void
-   OnAsyncError(error *err) {}
-
-   virtual void
-   OnBytesToWrite(const void *buf, int len, const std::function<void(error*)> &onComplete) = 0;
-
-   virtual void
-   OnBytesReceived(const void *buf, int len, error *err) = 0;
-};
-
-struct Filter
-{
-   Filter() {}
-   Filter(const Filter &) = delete;
-   virtual ~Filter() {}
-
-   virtual void
-   Write(const void *buf, int len, const std::function<void(error*)> &onComplete) = 0;
-
-   virtual void
-   OnBytesReceived(const void *buf, int len, error *err) = 0;
-
-   virtual void
-   OnEof() {}
-
-   std::shared_ptr<FilterEvents> Events;
-
-   virtual void
-   OnEventsInitialized(error *err) {}
-};
 
 // TODO: needs more parameters
 // [client cert, server keys]
