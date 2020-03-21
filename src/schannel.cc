@@ -79,9 +79,7 @@ struct SChannelFilter : public pollster::Filter
       cred.dwVersion = SCHANNEL_CRED_VERSION;
 
       // TODO: need to actually validate.
-      cred.dwFlags |= SCH_CRED_MANUAL_CRED_VALIDATION ;
-      cred.dwFlags |= SCH_CRED_IGNORE_NO_REVOCATION_CHECK | SCH_CRED_IGNORE_REVOCATION_OFFLINE;
-      cred.dwFlags |= SCH_CRED_NO_SERVERNAME_CHECK;
+      cred.dwFlags |= SCH_CRED_MANUAL_CRED_VALIDATION;
 
       status = SecInterface->AcquireCredentialsHandle(
          nullptr,
