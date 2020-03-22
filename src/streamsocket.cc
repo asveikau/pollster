@@ -340,6 +340,13 @@ pollster::StreamSocket::AttachSocket(error *err)
             self->OnBytesReceived(buf, len, err);
       };
 
+      auto on_error = [weak] (error *err) -> void
+      {
+         auto self = weak.lock();
+         if (self)
+            self->OnAsyncError(err);
+      };
+
       auto on_closed = [weak] (error *err) -> void
       {
          auto self = weak.lock();
@@ -352,10 +359,12 @@ pollster::StreamSocket::AttachSocket(error *err)
       waiter->add_socket(
          fd,
          state->writeBuffer.size() ? true : false,
-         [fd, state, on_recv, on_closed] (socket_event *sev, error *err) -> void
+         [fd, state, on_recv, on_error, on_closed] (socket_event *sev, error *err) -> void
          {
             try
             {
+               sev->on_error = on_error;
+
                sev->on_signal = [fd, state, sev, on_recv, on_closed] (error *err) -> void
                {
                   char buf[4096];
@@ -612,7 +621,14 @@ pollster::StreamSocket::CheckFilter(error *err)
             {
                auto self = weak.lock();
                if (self)
+               {
                   self->OnAsyncError(err);
+                  if (self->sev.Get())
+                  {
+                     error innerError;
+                     self->sev->remove(&innerError);
+                  }
+               }
             },
             // onWrite:
             [weak] (const void *buf, int len, const std::function<void(error*)> &onComplete) -> void
