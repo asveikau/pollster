@@ -223,6 +223,8 @@ struct SChannelFilter : public pollster::Filter
       case SEC_I_RENEGOTIATE:
          handshakeComplete = false;
          break;
+      case SEC_E_INCOMPLETE_MESSAGE:
+         goto exit;
       case SEC_E_OK:
          break;
       default:
