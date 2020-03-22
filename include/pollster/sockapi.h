@@ -14,6 +14,7 @@
 
 #include <pollster/pollster.h>
 #include <pollster/filter.h>
+#include <pollster/ssl.h>
 
 #include <functional>
 #include <memory>
@@ -50,15 +51,6 @@ ConnectAsync(
    const std::function<void(ConnectAsyncStatus, const char *, error *)> &onProgress,
    const std::function<void(const std::shared_ptr<common::SocketHandle> &, error *)> &onResult,
    const std::function<void(error *)> &onError
-);
-
-// TODO: needs more parameters
-// [client cert, server keys]
-void
-CreateSslFilter(
-   bool server,
-   std::shared_ptr<Filter> &res,
-   error *err
 );
 
 class StreamServer;

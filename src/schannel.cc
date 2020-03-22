@@ -6,7 +6,7 @@
  copyright notice and this permission notice appear in all copies.
 */
 
-#include <pollster/sockapi.h>
+#include <pollster/ssl.h>
 #include <common/misc.h>
 #include <string.h>
 #include <vector>
