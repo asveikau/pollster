@@ -58,7 +58,11 @@ struct SChannelFilter : public pollster::Filter
    void
    error_set_winsec(error *err, SECURITY_STATUS status)
    {
-      if (status)
+      if ((status & 0x80000000U))
+      {
+         error_set_win32(err, status);
+      }
+      else if (status)
       {
          error_clear(err);
          memcpy(&err->source, "wsec", MIN(sizeof(err->source), 4));
