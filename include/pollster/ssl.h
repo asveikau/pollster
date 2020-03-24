@@ -23,6 +23,10 @@ namespace pollster
 struct SslArgs
 {
    bool ServerMode;
+
+   SslArgs() :
+      ServerMode(false)
+   {}
 };
 
 void
