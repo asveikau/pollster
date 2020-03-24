@@ -173,7 +173,7 @@ struct SChannelFilter : public pollster::Filter
             buf = (char*)buf + len - inputBufs[1].cbBuffer;
             len = inputBufs[1].cbBuffer;
          }
-         else
+         else if (status != SEC_E_INCOMPLETE_MESSAGE)
          {
             buf = nullptr;
             len = 0;
