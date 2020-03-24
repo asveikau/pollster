@@ -149,12 +149,12 @@ struct OpenSslFilter : public pollster::Filter
    }
 
    void
-   Initialize(bool server, error *err)
+   Initialize(pollster::SslArgs &args, error *err)
    {
       init_library(err);
       ERROR_CHECK(err);
 
-      if (!(ctx = SSL_CTX_new(server ? TLS_server_method() : TLS_client_method())))
+      if (!(ctx = SSL_CTX_new(args.ServerMode ? TLS_server_method() : TLS_client_method())))
          ERROR_SET(err, unknown, "Failed to create SSL context");
 
       if (!(ssl = SSL_new(ctx)))
@@ -172,7 +172,7 @@ struct OpenSslFilter : public pollster::Filter
             SSL_MODE_ASYNC
       );
 
-      if (server)
+      if (args.ServerMode)
          SSL_set_accept_state(ssl);
       else
          SSL_set_connect_state(ssl);
@@ -670,7 +670,7 @@ struct OpenSslFilter : public pollster::Filter
 
 void
 pollster::CreateSslFilter(
-   bool server,
+   SslArgs &args,
    std::shared_ptr<pollster::Filter> &res,
    error *err
 )
@@ -686,7 +686,7 @@ pollster::CreateSslFilter(
       ERROR_SET(err, nomem);
    }
 
-   f->Initialize(server, err);
+   f->Initialize(args, err);
    ERROR_CHECK(err);
 
 exit:

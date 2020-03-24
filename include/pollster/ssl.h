@@ -16,11 +16,18 @@
 namespace pollster
 {
 
+//
 // TODO: needs more parameters
-// [client cert, server keys]
+// [client cert, server keys, hostname]
+//
+struct SslArgs
+{
+   bool ServerMode;
+};
+
 void
 CreateSslFilter(
-   bool server,
+   SslArgs &args,
    std::shared_ptr<Filter> &res,
    error *err
 );

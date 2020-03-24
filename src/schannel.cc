@@ -102,9 +102,9 @@ struct SChannelFilter : public pollster::Filter
    }
 
    void
-   Initialize(bool server, error *err)
+   Initialize(pollster::SslArgs &args, error *err)
    {
-      this->server = server;
+      this->server = args.ServerMode;
 
       SecInterface = InitSecurityInterface();
       if (!SecInterface)
@@ -420,7 +420,7 @@ struct SChannelFilter : public pollster::Filter
 
 void
 pollster::CreateSslFilter(
-   bool server,
+   SslArgs &args,
    std::shared_ptr<pollster::Filter> &res,
    error *err
 )
@@ -436,7 +436,7 @@ pollster::CreateSslFilter(
       ERROR_SET(err, nomem);
    }
 
-   f->Initialize(server, err);
+   f->Initialize(args, err);
    ERROR_CHECK(err);
 
 exit:

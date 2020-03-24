@@ -224,7 +224,8 @@ add_socket(
 #if !defined(HAVE_SSL)
       ERROR_SET(err, unknown, "TLS not supported by library");
 #else
-      pollster::CreateSslFilter(false, sock->filter, err);
+      pollster::SslArgs args;
+      pollster::CreateSslFilter(args, sock->filter, err);
       ERROR_CHECK(err);
       sock->CheckFilter(err);
       ERROR_CHECK(err);
