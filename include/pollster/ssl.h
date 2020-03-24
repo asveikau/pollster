@@ -23,9 +23,11 @@ namespace pollster
 struct SslArgs
 {
    bool ServerMode;
+   const char *HostName;
 
    SslArgs() :
-      ServerMode(false)
+      ServerMode(false),
+      HostName(nullptr)
    {}
 };
 

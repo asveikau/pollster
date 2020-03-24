@@ -15,6 +15,8 @@
 #include <openssl/conf.h>
 #include <openssl/err.h>
 #include <openssl/opensslv.h>
+#include <openssl/x509.h>
+#include <openssl/x509v3.h>
 
 #include <limits.h>
 #include <string.h>
@@ -54,6 +56,19 @@ error_set_openssl(error *err, int code)
       return (const char*)err->context;
    };
 }
+
+void
+error_set_openssl_verify(error *err, long code)
+{
+   error_clear(err);
+   memcpy(&err->source, "x509", MIN(sizeof(err->source), 4));
+   err->code = code;
+   err->get_string = [] (error *err) -> const char *
+   {
+      return X509_verify_cert_error_string(err->code);
+   };
+}
+
 
 void
 init_library(error *err)
@@ -111,13 +126,15 @@ struct OpenSslFilter : public pollster::Filter
    std::vector<PendingWriteCallback> ciphertextWriteCallbacks;
    std::vector<char> pendingRead;
    bool initialHandshake;
+   bool hostnameSet;
 
    OpenSslFilter()
       : ssl(nullptr),
         ctx(nullptr),
         contextBio(nullptr),
         networkBio(nullptr),
-        initialHandshake(false)
+        initialHandshake(false),
+        hostnameSet(false)
    {
    }
 
@@ -160,6 +177,26 @@ struct OpenSslFilter : public pollster::Filter
       if (!(ssl = SSL_new(ctx)))
          ERROR_SET(err, unknown, "Failed to create SSL object");
 
+      if (args.HostName)
+      {
+         if (!SSL_set_tlsext_host_name(ssl, args.HostName))
+            ERROR_SET(err, unknown, "Failed to set hostname");
+
+         auto param = SSL_get0_param(ssl);
+
+         X509_VERIFY_PARAM_set_hostflags(param, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
+
+         if (!X509_VERIFY_PARAM_set1_host(param, args.HostName, strlen(args.HostName)))
+            ERROR_SET(err, unknown, "Failed to set hostname");
+
+         if (!SSL_CTX_set_default_verify_paths(ctx))
+            ERROR_SET(err, unknown, "Failed to load default CA");
+
+         SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, nullptr);
+
+         hostnameSet = true;
+      }
+
       if (!BIO_new_bio_pair(&contextBio, 0, &networkBio, 0))
          ERROR_SET(err, unknown, "Failed to create bio pair");
 
@@ -169,7 +206,8 @@ struct OpenSslFilter : public pollster::Filter
          ssl,
          SSL_MODE_ENABLE_PARTIAL_WRITE |
             SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
-            SSL_MODE_ASYNC
+            SSL_MODE_ASYNC |
+            SSL_MODE_AUTO_RETRY
       );
 
       if (args.ServerMode)
@@ -608,6 +646,20 @@ struct OpenSslFilter : public pollster::Filter
          r = SSL_do_handshake(ssl);
          if (r == 1)
          {
+            if (hostnameSet)
+            {
+               auto cert = SSL_get_peer_certificate(ssl);
+               if (!cert)
+                  ERROR_SET(err, unknown, "Could not get certificate");
+
+               long verify = SSL_get_verify_result(ssl);
+
+               if (verify != X509_V_OK)
+               {
+                  ERROR_SET(err, openssl_verify, verify);
+               }
+            }
+
             // TODO: additional validation on cert chain?
 
             initialHandshake = true;

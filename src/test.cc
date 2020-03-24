@@ -32,7 +32,7 @@ add_stdin(
 static void
 add_socket(
    const std::shared_ptr<pollster::StreamSocket> &sock,
-   bool ssl,
+   pollster::SslArgs *ssl,
    const std::function<void(error *)> &onError,
    error *err
 );
@@ -97,10 +97,11 @@ main(int argc, char **argv)
    {
       for (int i = 1; i<argc; ++i)
       {
-         bool ssl = false;
+         pollster::SslArgs *ssl = nullptr;
+         pollster::SslArgs sslStorage;
 
          if (!strcmp(argv[i], "-tcpclient") ||
-             (ssl = !strcmp(argv[i], "-tlsclient")))
+             (ssl = !strcmp(argv[i], "-tlsclient") ? &sslStorage : nullptr))
          {
             if (i+2 >= argc)
                usage();
@@ -109,6 +110,10 @@ main(int argc, char **argv)
 
             const char *host = argv[++i];
             const char *port = argv[++i];
+
+            if (ssl)
+               ssl->HostName = host;
+
             auto sock = std::make_shared<pollster::StreamSocket>();
             add_socket(sock, ssl, onError, &err);
             ERROR_CHECK(&err);
@@ -129,7 +134,7 @@ main(int argc, char **argv)
 
             const char *path = argv[++i];
             auto sock = std::make_shared<pollster::StreamSocket>();
-            add_socket(sock, false, onError, &err);
+            add_socket(sock, ssl, onError, &err);
             ERROR_CHECK(&err);
 
             ops.push_back(
@@ -158,7 +163,7 @@ main(int argc, char **argv)
                {
                   log_printf("server: got client\n");
 
-                  add_socket(fd, false, onError, err);
+                  add_socket(fd, nullptr, onError, err);
                };
             }
 
@@ -214,7 +219,7 @@ exit:
 static void
 add_socket(
    const std::shared_ptr<pollster::StreamSocket> &sock,
-   bool ssl,
+   pollster::SslArgs *ssl,
    const std::function<void(error *)> &onError,
    error *err
 )
@@ -224,8 +229,7 @@ add_socket(
 #if !defined(HAVE_SSL)
       ERROR_SET(err, unknown, "TLS not supported by library");
 #else
-      pollster::SslArgs args;
-      pollster::CreateSslFilter(args, sock->filter, err);
+      pollster::CreateSslFilter(*ssl, sock->filter, err);
       ERROR_CHECK(err);
       sock->CheckFilter(err);
       ERROR_CHECK(err);

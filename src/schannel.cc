@@ -28,11 +28,13 @@ struct SChannelFilter : public pollster::Filter
    bool server;
    std::vector<char> pendingReads;
    SecPkgContext_StreamSizes sizes;
+   PWSTR remoteName;
 
    SChannelFilter()
       : SecInterface(nullptr),
         handshakeComplete(false),
-        server(false)
+        server(false),
+        remoteName(nullptr)
    {
       SecInvalidateHandle(&context);
       SecInvalidateHandle(&creds);
@@ -45,6 +47,7 @@ struct SChannelFilter : public pollster::Filter
          DeleteSecurityContext(&context);
       if (SecInterface && Valid(creds))
          SecInterface->FreeCredentialsHandle(&creds);
+      free(remoteName);
    }
 
    static bool
@@ -82,8 +85,10 @@ struct SChannelFilter : public pollster::Filter
 
       cred.dwVersion = SCHANNEL_CRED_VERSION;
 
-      // TODO: need to actually validate.
-      cred.dwFlags |= SCH_CRED_MANUAL_CRED_VALIDATION;
+      if (!remoteName)
+         cred.dwFlags |= SCH_CRED_MANUAL_CRED_VALIDATION;
+      else
+         cred.dwFlags |= SCH_CRED_AUTO_CRED_VALIDATION;
 
       status = SecInterface->AcquireCredentialsHandle(
          nullptr,
@@ -109,6 +114,12 @@ struct SChannelFilter : public pollster::Filter
       SecInterface = InitSecurityInterface();
       if (!SecInterface)
          ERROR_SET(err, win32, GetLastError());
+
+      if (args.HostName)
+      {
+         remoteName = ConvertToPwstr(args.HostName, err);
+         ERROR_CHECK(err);
+      }
 
       GetCreds(server, err);
       ERROR_CHECK(err);
@@ -153,7 +164,7 @@ struct SChannelFilter : public pollster::Filter
       status = SecInterface->InitializeSecurityContext(
          &creds,
          Valid(context) ? &context : nullptr,
-         nullptr, // server name?
+         remoteName,
          ISC_REQ_SEQUENCE_DETECT | ISC_REQ_REPLAY_DETECT | ISC_REQ_CONFIDENTIALITY |
             ISC_RET_EXTENDED_ERROR | ISC_REQ_ALLOCATE_MEMORY | ISC_REQ_STREAM,
          0,
