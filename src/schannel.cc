@@ -7,6 +7,7 @@
 */
 
 #include <pollster/ssl.h>
+#include <common/c++/lock.h>
 #include <common/misc.h>
 #include <string.h>
 #include <vector>
@@ -29,6 +30,9 @@ struct SChannelFilter : public pollster::Filter
    std::vector<char> pendingReads;
    SecPkgContext_StreamSizes sizes;
    PWSTR remoteName;
+   CRITICAL_SECTION writeLock;
+   std::vector<char> pendingWrites;
+   std::vector<std::pair<size_t, std::function<void(error*)>>> pendingWriteCallbacks;
 
    SChannelFilter()
       : SecInterface(nullptr),
@@ -39,6 +43,7 @@ struct SChannelFilter : public pollster::Filter
       SecInvalidateHandle(&context);
       SecInvalidateHandle(&creds);
       memset(&sizes, 0, sizeof(sizes));
+      InitializeCriticalSection(&writeLock);
    }
 
    ~SChannelFilter()
@@ -48,6 +53,7 @@ struct SChannelFilter : public pollster::Filter
       if (SecInterface && Valid(creds))
          SecInterface->FreeCredentialsHandle(&creds);
       free(remoteName);
+      DeleteCriticalSection(&writeLock);
    }
 
    static bool
@@ -138,6 +144,8 @@ struct SChannelFilter : public pollster::Filter
       SecBuffer inputBufs[2] = {0};
       SecBuffer outputBuf = {0};
 
+      bool completedHere = false;
+
       if (handshakeComplete)
          goto exit;
 
@@ -194,7 +202,7 @@ struct SChannelFilter : public pollster::Filter
       switch (status)
       {
       case SEC_E_OK:
-         handshakeComplete = true;
+         completedHere = true;
          break;
       case SEC_I_CONTINUE_NEEDED:
       case SEC_E_INCOMPLETE_MESSAGE:
@@ -206,6 +214,35 @@ struct SChannelFilter : public pollster::Filter
       if (outputBuf.cbBuffer && Events.get())
       {
          Events->OnBytesToWrite(outputBuf.pvBuffer, outputBuf.cbBuffer, std::function<void(error*)>());
+      }
+
+      if (completedHere)
+      {
+         common::locker l;
+
+         l.acquire(&writeLock);
+         handshakeComplete = true;
+
+         if (pendingWrites.size())
+         {
+            int i = 0;
+            size_t n = 0;
+
+            while (n < pendingWrites.size())
+            {
+               auto p = (i<pendingWriteCallbacks.size()) ? &pendingWriteCallbacks[i++] : nullptr;
+               auto m = (p ? p->first : pendingWrites.size()) - n;
+               std::function<void(error *)> emptyFn;
+               std::function<void(error *)> &fn = p ? p->second : emptyFn;
+               Write(pendingWrites.data() + n, m, fn);
+               n += m;
+            }
+
+            pendingWrites.resize(0);
+            pendingWrites.shrink_to_fit();
+            pendingWriteCallbacks.resize(0);
+            pendingWriteCallbacks.shrink_to_fit();
+         }
       }
 
    exit:
@@ -274,10 +311,7 @@ struct SChannelFilter : public pollster::Filter
       SecBufferDesc output = {0};
       size_t msglen = 0;
       std::vector<char> tmp;
-
-      //
-      // TODO: buffer ahead of handshake?
-      //
+      common::locker l;
 
       if (!sizes.cbMaximumMessage)
       {
@@ -332,6 +366,27 @@ struct SChannelFilter : public pollster::Filter
       }
 
       memcpy(outputBufs[1].pvBuffer, buf, len);
+
+      l.acquire(&writeLock);
+
+      if (!handshakeComplete)
+      {
+         tmp.resize(0);
+         tmp.shrink_to_fit();
+
+         try
+         {
+            pendingWrites.insert(pendingWrites.end(), (char*)buf, (char*)buf+len);
+            if (onComplete)
+               pendingWriteCallbacks.push_back(std::make_pair(pendingWrites.size(), onComplete));
+         }
+         catch (std::bad_alloc)
+         {
+            l.release();
+            ERROR_SET(&err, nomem);
+         }
+         goto exit;
+      }
 
       status = SecInterface->EncryptMessage(&context, 0, &output, 0);
       if (status)
