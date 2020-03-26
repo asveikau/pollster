@@ -330,7 +330,7 @@ struct OpenSslFilter : public pollster::Filter
 
          if (!initialHandshake)
          {
-            TryHandshake(&err);
+            TryHandshakeUnlocked(&err);
             ERROR_CHECK(&err);
 
             if (!initialHandshake)
@@ -368,7 +368,7 @@ struct OpenSslFilter : public pollster::Filter
             switch (code)
             {
             case SSL_ERROR_WANT_WRITE:
-               if (TryCiphertextWrite(&err) && !retried)
+               if (TryCiphertextWriteUnlocked(&err) && !retried)
                {
                   retried = true;
                   goto retry;
@@ -415,7 +415,7 @@ struct OpenSslFilter : public pollster::Filter
                switch (code)
                {
                case SSL_ERROR_WANT_WRITE:
-                  if (TryCiphertextWrite(err) && !retried)
+                  if (TryCiphertextWriteUnlocked(err) && !retried)
                   {
                      retried = true;
                      goto retry;
@@ -439,7 +439,7 @@ struct OpenSslFilter : public pollster::Filter
       );
       ERROR_CHECK(err);
 
-      TryCiphertextWrite(err);
+      TryCiphertextWriteUnlocked(err);
       ERROR_CHECK(err);
    exit:;
    }
@@ -460,6 +460,17 @@ struct OpenSslFilter : public pollster::Filter
 
    bool
    TryCiphertextWrite(error *err)
+   {
+      if (!BIO_ctrl_pending(networkBio))
+         return false;
+
+      common::locker l;
+      l.acquire(writeLock);
+      return TryCiphertextWriteUnlocked(err);
+   }
+
+   bool
+   TryCiphertextWriteUnlocked(error *err)
    {
       size_t pending = 0;
       const int bufsz = 4096;
@@ -639,6 +650,17 @@ struct OpenSslFilter : public pollster::Filter
    void
    TryHandshake(error *err)
    {
+      if (initialHandshake)
+         return;
+
+      common::locker l;
+      l.acquire(writeLock);
+      TryHandshakeUnlocked(err);
+   }
+
+   void
+   TryHandshakeUnlocked(error *err)
+   {
       if (!initialHandshake)
       {
          int r = 0;
@@ -664,6 +686,9 @@ struct OpenSslFilter : public pollster::Filter
             // TODO: additional validation on cert chain?
 
             initialHandshake = true;
+
+            TryPendingWritesUnlocked(err);
+            ERROR_CHECK(err);
          }
          else
          {
@@ -671,7 +696,7 @@ struct OpenSslFilter : public pollster::Filter
             switch (code)
             {
             case SSL_ERROR_WANT_READ:
-               if (TryCiphertextWrite(err) && !retried)
+               if (TryCiphertextWriteUnlocked(err) && !retried)
                {
                   retried = true;
                   goto retry;
