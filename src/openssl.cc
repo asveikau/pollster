@@ -512,52 +512,56 @@ struct OpenSslFilter : public pollster::Filter
    }
 
    void
+   InsertPendingRead(const void *buf, size_t len, error *err)
+   {
+      if (!len)
+         goto exit;
+      try
+      {
+         pendingRead.insert(pendingRead.begin(), (const char*)buf, (const char*)buf+len);
+      }
+      catch (std::bad_alloc)
+      {
+         ERROR_SET(err, nomem);
+      }
+   exit:;
+   }
+
+   void
    OnBytesReceived(const void *buf, int len, error *err)
    {
       size_t out = 0;
       int r = 0;
+      bool heap = false;
+      size_t slen = len;
 
       if (pendingRead.size())
       {
-         if (len)
-         {
-            try
-            {
-               pendingRead.insert(pendingRead.begin(), (const char*)buf, (const char*)buf+len);
-            }
-            catch (std::bad_alloc)
-            {
-               ERROR_SET(err, nomem);
-            }
-         }
+         InsertPendingRead(buf, len, err);
+         ERROR_CHECK(err);
 
-         r = BIO_write_ex(networkBio, pendingRead.data(), pendingRead.size(), &out);
-         if (r == 1)
-            pendingRead.erase(pendingRead.begin(), pendingRead.begin()+out);
-         else if (!BIO_should_retry(networkBio))
-            ERROR_SET(err, unknown, "BIO_write_ex error");
+         heap = true;
+         buf = pendingRead.data();
+         slen = pendingRead.size();
       }
-      else
+      if (!slen)
+         goto skip;
+
+      r = BIO_write_ex(networkBio, buf, slen, &out);
+      if (r == 1)
       {
-         r = BIO_write_ex(networkBio, buf, len, &out);
-         if (r == 1)
+         if (heap)
+            pendingRead.erase(pendingRead.begin(), pendingRead.begin()+out);
+         else if (out != slen)
          {
-            if (out != len)
-            {
-               try
-               {
-                  pendingRead.insert(pendingRead.end(), (const char*)buf+out, (const char*)buf+len);
-               }
-               catch (std::bad_alloc)
-               {
-                  ERROR_SET(err, nomem);
-               }
-            }
+            InsertPendingRead((const char*)buf + out, slen - out, err);
+            ERROR_CHECK(err);
          }
-         else if (!BIO_should_retry(networkBio))
-            ERROR_SET(err, unknown, "bio_write_ex error");
       }
+      else if (!BIO_should_retry(networkBio))
+         ERROR_SET(err, unknown, "BIO_write_ex error");
 
+   skip:
       TryHandshake(err);
       ERROR_CHECK(err);
       TryPendingWrites(err);
