@@ -368,13 +368,12 @@ struct OpenSslFilter : public pollster::Filter
             switch (code)
             {
             case SSL_ERROR_WANT_READ:
-               TryCiphertextWrite(&err);
-               ERROR_CHECK(&err);
-               if (!retried)
+               if (TryCiphertextWrite(&err) && !retried)
                {
                   retried = true;
                   goto retry;
                }
+               ERROR_CHECK(&err);
                // fall through
             case SSL_ERROR_WANT_WRITE:
                AppendWriteToBuffer(buf, len, onComplete, &err);
@@ -416,13 +415,12 @@ struct OpenSslFilter : public pollster::Filter
                switch (code)
                {
                case SSL_ERROR_WANT_READ:
-                  TryCiphertextWrite(err);
-                  ERROR_CHECK(err);
-                  if (!retried)
+                  if (TryCiphertextWrite(err) && !retried)
                   {
                      retried = true;
                      goto retry;
                   }
+                  ERROR_CHECK(err);
                   // fall through
                case SSL_ERROR_WANT_WRITE:
                   break;
