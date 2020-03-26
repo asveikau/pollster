@@ -367,7 +367,7 @@ struct OpenSslFilter : public pollster::Filter
             int code = SSL_get_error(ssl, r);
             switch (code)
             {
-            case SSL_ERROR_WANT_READ:
+            case SSL_ERROR_WANT_WRITE:
                if (TryCiphertextWrite(&err) && !retried)
                {
                   retried = true;
@@ -375,7 +375,7 @@ struct OpenSslFilter : public pollster::Filter
                }
                ERROR_CHECK(&err);
                // fall through
-            case SSL_ERROR_WANT_WRITE:
+            case SSL_ERROR_WANT_READ:
                AppendWriteToBuffer(buf, len, onComplete, &err);
                ERROR_CHECK(&err);
                goto exit;
@@ -414,7 +414,7 @@ struct OpenSslFilter : public pollster::Filter
                int code = SSL_get_error(ssl, r);
                switch (code)
                {
-               case SSL_ERROR_WANT_READ:
+               case SSL_ERROR_WANT_WRITE:
                   if (TryCiphertextWrite(err) && !retried)
                   {
                      retried = true;
@@ -422,7 +422,7 @@ struct OpenSslFilter : public pollster::Filter
                   }
                   ERROR_CHECK(err);
                   // fall through
-               case SSL_ERROR_WANT_WRITE:
+               case SSL_ERROR_WANT_READ:
                   break;
                default:
                   ERROR_SET(err, openssl, code);
