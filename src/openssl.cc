@@ -544,99 +544,98 @@ struct OpenSslFilter : public pollster::Filter
          buf = pendingRead.data();
          slen = pendingRead.size();
       }
-      if (!slen)
-         goto skip;
 
-      r = BIO_write_ex(networkBio, buf, slen, &out);
-      if (r == 1)
+      for (;;)
       {
-         if (heap)
-            pendingRead.erase(pendingRead.begin(), pendingRead.begin()+out);
-         else if (out != slen)
+         bool found = false;
+
+         if (slen)
          {
-            InsertPendingRead((const char*)buf + out, slen - out, err);
+            r = BIO_write_ex(networkBio, buf, slen, &out);
+            if (r == 1)
+            {
+               buf = (const char*)buf + out;
+               slen -= out;
+            }
+            else if (!BIO_should_retry(networkBio))
+               ERROR_SET(err, unknown, "BIO_write_ex error");
+         }
+
+         if (!initialHandshake)
+         {
+            TryHandshake(err);
             ERROR_CHECK(err);
          }
-      }
-      else if (!BIO_should_retry(networkBio))
-         ERROR_SET(err, unknown, "BIO_write_ex error");
 
-   skip:
-      TryHandshake(err);
-      ERROR_CHECK(err);
-      TryPendingWrites(err);
-      ERROR_CHECK(err);
-      TryPlaintextRead(err);
-      ERROR_CHECK(err);
+         if (initialHandshake)
+         {
+            TryPendingWrites(err);
+            ERROR_CHECK(err);
+
+            if (TryPlaintextRead(err))
+               found = true;
+            ERROR_CHECK(err);
+
+            if (TryCiphertextWrite(err))
+               found = true;
+            ERROR_CHECK(err);
+         }
+
+         if (!found)
+            break;
+      }
+
+      if (heap)
+         pendingRead.erase(pendingRead.begin(), pendingRead.begin() + pendingRead.size() - slen);
+      else if (slen)
+      {
+         InsertPendingRead(buf, slen, err);
+         ERROR_CHECK(err);
+      }
    exit:;
    }
 
-   void
+   bool
    TryPlaintextRead(error *err)
    {
+      bool found = false;
+
       if (!initialHandshake)
-         return;
+         return found;
 
       char buf[4096];
       size_t out = 0;
-      bool retried = false;
    retry:
       int r = SSL_read_ex(ssl, buf, sizeof(buf), &out);
       if (r == 1)
       {
+         found = true;
          if (Events.get())
          {
             Events->OnBytesReceived(buf, out, err);
             ERROR_CHECK(err);
          }
+         goto retry;
       }
       else
       {
          int code = SSL_get_error(ssl, r);
-         bool found = false;
          switch (code)
          {
-         case SSL_ERROR_WANT_READ:
-            TryCiphertextWrite(err);
-            ERROR_CHECK(err);
-            if (!retried)
-            {
-               retried = true;
-               goto retry;
-            }
-            break;
          case SSL_ERROR_WANT_WRITE:
-            TryPendingReads(err);
-            ERROR_CHECK(err);
-            if (!retried)
-            {
-               retried = true;
-               goto retry;
-            }
-            break;
-
+         case SSL_ERROR_WANT_READ:
          // Seems to be an issue with older OpenSSL or libressl,
          // perhaps specific to the way we're using BIO.
          // Newer OpenSSL doesn't need it.
          //
          case SSL_ERROR_SYSCALL:
-            found = TryCiphertextWrite(err);
-            ERROR_CHECK(err);
-            found |= TryPendingReads(err);
-            ERROR_CHECK(err);
-            if (!retried)
-            {
-               retried = true;
-               goto retry;
-            }
-            if (!found)
-               break;
-            // fall through
+            break;
          default:
             ERROR_SET(err, openssl, code);
          }
       }
-   exit:;
+   exit:
+      return found;
    }
 
    void
