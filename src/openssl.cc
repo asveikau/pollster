@@ -69,7 +69,6 @@ error_set_openssl_verify(error *err, long code)
    };
 }
 
-
 void
 init_library(error *err)
 {
