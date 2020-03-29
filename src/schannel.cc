@@ -316,15 +316,18 @@ struct SChannelFilter : public pollster::Filter
       if (!sizes.cbMaximumMessage)
       {
          l.acquire(&writeLock);
+
          if (!handshakeComplete)
             goto noContext;
-         l.release();
 
          status = SecInterface->QueryContextAttributes(
             &context,
             SECPKG_ATTR_STREAM_SIZES,
             &sizes
          );
+
+         l.release();
+
          if (status)
             ERROR_SET(&err, winsec, status);
       }
