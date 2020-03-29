@@ -250,12 +250,13 @@ struct SChannelFilter : public pollster::Filter
          SecInterface->FreeContextBuffer(outputBuf.pvBuffer);
    }
 
-   void
+   bool
    TryDecrypt(void *&buf, size_t &len, error *err)
    {
       SECURITY_STATUS status = 0;
       SecBuffer inputBufs[4] = {0}, *in = inputBufs;
       SecBufferDesc input = {0};
+      bool found = false;
 
       in->BufferType = SECBUFFER_DATA;
       in->pvBuffer = buf;
@@ -278,6 +279,7 @@ struct SChannelFilter : public pollster::Filter
       case SEC_E_INCOMPLETE_MESSAGE:
          goto exit;
       case SEC_E_OK:
+         found = true;
          break;
       default:
          ERROR_SET(err, winsec, status);
@@ -299,7 +301,8 @@ struct SChannelFilter : public pollster::Filter
          len = 0;
       }
 
-   exit:;
+   exit:
+      return found;
    }
 
    void
@@ -445,15 +448,17 @@ struct SChannelFilter : public pollster::Filter
       else
       {
       recvPath:
+         bool shouldRetry = false;
+
          void *sbuf = (void*)buf;
          size_t slen = len;
 
-         TryDecrypt(sbuf, slen, err);
+         shouldRetry = TryDecrypt(sbuf, slen, err);
          ERROR_CHECK(err);
          buf = sbuf;
          len = slen;
 
-         if (!handshakeComplete && len)
+         if ((shouldRetry || !handshakeComplete) && len)
             goto retry;
       }
 
