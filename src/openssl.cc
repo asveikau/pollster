@@ -292,6 +292,8 @@ struct OpenSslFilter : public pollster::Filter
          if (len == out && largerBuffer)
             goto retry;
       }
+      if (len != out)
+         goto retry;
    exit:;
    }
 
