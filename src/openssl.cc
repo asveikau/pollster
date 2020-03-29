@@ -343,7 +343,6 @@ struct OpenSslFilter : public pollster::Filter
       {
          size_t out = 0;
          int r = 0;
-         bool retried = false;
       retry:
          r = SSL_write_ex(ssl, buf, len, &out);
          if (r == 1)
@@ -370,11 +369,8 @@ struct OpenSslFilter : public pollster::Filter
             switch (code)
             {
             case SSL_ERROR_WANT_WRITE:
-               if (TryCiphertextWriteUnlocked(&err) && !retried)
-               {
-                  retried = true;
+               if (TryCiphertextWriteUnlocked(&err))
                   goto retry;
-               }
                ERROR_CHECK(&err);
                // fall through
             case SSL_ERROR_WANT_READ:
@@ -404,7 +400,6 @@ struct OpenSslFilter : public pollster::Filter
          [&] (size_t len, size_t *out, const std::function<void(error*)> &onComplete, error *err) -> void
          {
             int r = 0;
-            bool retried = false;
          retry:
             r = SSL_write_ex(ssl, pendingWrites.data(), len, out);
             if (r == 1)
@@ -417,11 +412,8 @@ struct OpenSslFilter : public pollster::Filter
                switch (code)
                {
                case SSL_ERROR_WANT_WRITE:
-                  if (TryCiphertextWriteUnlocked(err) && !retried)
-                  {
-                     retried = true;
+                  if (TryCiphertextWriteUnlocked(err))
                      goto retry;
-                  }
                   ERROR_CHECK(err);
                   // fall through
                case SSL_ERROR_WANT_READ:
@@ -666,7 +658,6 @@ struct OpenSslFilter : public pollster::Filter
       if (!initialHandshake)
       {
          int r = 0;
-         bool retried = false;
       retry:
          r = SSL_do_handshake(ssl);
          if (r == 1)
@@ -698,11 +689,8 @@ struct OpenSslFilter : public pollster::Filter
             switch (code)
             {
             case SSL_ERROR_WANT_READ:
-               if (TryCiphertextWriteUnlocked(err) && !retried)
-               {
-                  retried = true;
+               if (TryCiphertextWriteUnlocked(err))
                   goto retry;
-               }
                ERROR_CHECK(err);
                // fall through
             case SSL_ERROR_WANT_WRITE:
