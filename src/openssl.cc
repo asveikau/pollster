@@ -126,6 +126,7 @@ struct OpenSslFilter : public pollster::Filter
    std::vector<char> pendingRead;
    bool initialHandshake;
    bool hostnameSet;
+   pollster::SslArgs::CallbackStruct cb;
 
    OpenSslFilter()
       : ssl(nullptr),
@@ -169,6 +170,8 @@ struct OpenSslFilter : public pollster::Filter
    {
       init_library(err);
       ERROR_CHECK(err);
+
+      cb = std::move(args.Callbacks);
 
       if (!(ctx = SSL_CTX_new(args.ServerMode ? TLS_server_method() : TLS_client_method())))
          ERROR_SET(err, unknown, "Failed to create SSL context");
@@ -672,6 +675,20 @@ struct OpenSslFilter : public pollster::Filter
                if (verify != X509_V_OK)
                {
                   ERROR_SET(err, openssl_verify, verify);
+               }
+            }
+
+            if (cb.OnCipherKnown)
+            {
+               auto cipher = SSL_get_current_cipher(ssl);
+               if (cipher)
+               {
+                  auto name = SSL_CIPHER_get_name(cipher);
+                  if (name)
+                  {
+                     cb.OnCipherKnown(name, err);
+                     ERROR_CHECK(err);
+                  }
                }
             }
 

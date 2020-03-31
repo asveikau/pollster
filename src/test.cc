@@ -112,7 +112,14 @@ main(int argc, char **argv)
             const char *port = argv[++i];
 
             if (ssl)
+            {
                ssl->HostName = host;
+
+               ssl->Callbacks.OnCipherKnown = [] (const char *cipher, error *err) -> void
+               {
+                  log_printf("Cipher: %s", cipher);
+               };
+            }
 
             auto sock = std::make_shared<pollster::StreamSocket>();
             add_socket(sock, ssl, onError, &err);

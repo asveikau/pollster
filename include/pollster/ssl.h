@@ -9,6 +9,7 @@
 #ifndef pollster_ssl_h_
 #define pollster_ssl_h_
 
+#include <functional>
 #include <memory>
 
 #include <pollster/filter.h>
@@ -29,6 +30,12 @@ struct SslArgs
       ServerMode(false),
       HostName(nullptr)
    {}
+
+   struct CallbackStruct
+   {
+      std::function<void(const char *, error *err)> OnCipherKnown;
+   };
+   CallbackStruct Callbacks;
 };
 
 void

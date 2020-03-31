@@ -33,6 +33,7 @@ struct SChannelFilter : public pollster::Filter
    CRITICAL_SECTION writeLock;
    std::vector<char> pendingWrites;
    std::vector<std::pair<size_t, std::function<void(error*)>>> pendingWriteCallbacks;
+   pollster::SslArgs::CallbackStruct cb;
 
    SChannelFilter()
       : SecInterface(nullptr),
@@ -116,6 +117,8 @@ struct SChannelFilter : public pollster::Filter
    Initialize(pollster::SslArgs &args, error *err)
    {
       this->server = args.ServerMode;
+
+      cb = std::move(args.Callbacks);
 
       SecInterface = InitSecurityInterface();
       if (!SecInterface)
@@ -219,6 +222,27 @@ struct SChannelFilter : public pollster::Filter
       if (completedHere)
       {
          common::locker l;
+
+         if (cb.OnCipherKnown)
+         {
+            SecPkgContext_CipherInfo info = {0};
+            PSTR name = nullptr;
+
+            status = SecInterface->QueryContextAttributes(
+               &context,
+               SECPKG_ATTR_CIPHER_INFO,
+               &info
+            );
+            if (status)
+               ERROR_SET(err, winsec, status);
+
+            name = ConvertToPstr(info.szCipherSuite, err);
+            ERROR_CHECK(err);
+
+            cb.OnCipherKnown(name, err);
+            free(name);
+            ERROR_CHECK(err);
+         }
 
          l.acquire(&writeLock);
          handshakeComplete = true;
