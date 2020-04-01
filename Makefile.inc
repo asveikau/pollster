@@ -109,6 +109,15 @@ LIBPOLLSTER_SRC += \
    $(LIBPOLLSTER_ROOT)src/getaddrinfo.cc
 endif
 
+ifeq ($(PLATFORM), darwin)
+ifndef USE_OPENSSL
+LIBPOLLSTER_SRC += \
+   $(LIBPOLLSTER_ROOT)src/securetransport.cc
+LIBPOLLSTER_CFLAGS += -DHAVE_SSL
+LDFLAGS += -framework Security
+endif
+endif
+
 ifdef USE_OPENSSL
 ifeq ($(PLATFORM), darwin)
 # This is where MacPorts puts it.  Probably not widespread.
