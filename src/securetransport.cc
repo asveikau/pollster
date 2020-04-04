@@ -290,7 +290,13 @@ struct SecureTransportFilter : public pollster::Filter
       {
       case 0:
       case errSSLWouldBlock:
-      case errSSLClosedGraceful: 
+         break;
+      case errSSLClosedGraceful:
+         if (Events.get())
+         {
+            Events->OnClosed(err);
+            ERROR_CHECK(err);
+         }
          break;
       default:
          ERROR_SET(err, osstatus, status);

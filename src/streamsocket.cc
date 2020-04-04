@@ -18,14 +18,14 @@ pollster::StreamSocket::StreamSocket(
    struct waiter *waiter_,
    std::shared_ptr<common::SocketHandle> fd_
 )
-: waiter(waiter_), fd(fd_), state(std::make_shared<SharedState>())
+: waiter(waiter_), fd(fd_), state(std::make_shared<SharedState>()), filterEof(false)
 {
 }
 
 pollster::StreamSocket::StreamSocket(
    const std::function<void(const void *buf, int len, const std::function<void(error*)> &onComplete, error *err)> &writeFn_
 )
-: writeFn(writeFn_)
+: writeFn(writeFn_), filterEof(false)
 {
 }
 
@@ -359,13 +359,13 @@ pollster::StreamSocket::AttachSocket(error *err)
       waiter->add_socket(
          fd,
          state->writeBuffer.size() ? true : false,
-         [fd, state, on_recv, on_error, on_closed] (socket_event *sev, error *err) -> void
+         [fd, state, on_recv, on_error, on_closed, weak] (socket_event *sev, error *err) -> void
          {
             try
             {
                sev->on_error = on_error;
 
-               sev->on_signal = [fd, state, sev, on_recv, on_closed] (error *err) -> void
+               sev->on_signal = [fd, state, sev, on_recv, on_closed, weak] (error *err) -> void
                {
                   char buf[4096];
                   int r = 0;
@@ -374,6 +374,7 @@ pollster::StreamSocket::AttachSocket(error *err)
                   size_t written = 0;
                   WriteCompletionNode *first = nullptr;
                   WriteCompletionNode *n = nullptr;
+                  bool filterEof = false;
 
                   l.acquire(state->writeLock);
 
@@ -428,7 +429,14 @@ pollster::StreamSocket::AttachSocket(error *err)
                   CheckIoError(r, err);
                   ERROR_CHECK(err);
 
-                  if (r == 0)
+                  if (r != 0)
+                  {
+                     auto self = weak.lock();
+                     if (self.get())
+                        filterEof = self->filterEof;
+                  }
+
+                  if (r == 0 || filterEof)
                   {
                      error innerError;
                      common::Pointer<pollster::socket_event> rc;
@@ -541,20 +549,23 @@ exit:;
 
 namespace {
 
-template<typename OnError, typename OnWrite, typename OnRecv>
+template<typename OnError, typename OnWrite, typename OnRecv, typename OnClose>
 class CallbackFilterEvents : public pollster::FilterEvents
 {
    OnError onError;
    OnWrite onWrite;
    OnRecv onRecv;
+   OnClose onClose;
 public:
    CallbackFilterEvents(
       const OnError &onError_,
       const OnWrite &onWrite_,
-      const OnRecv &onRecv_
+      const OnRecv &onRecv_,
+      const OnClose &onClose_
    ) : onError(onError_),
        onWrite(onWrite_),
-       onRecv(onRecv_)
+       onRecv(onRecv_),
+       onClose(onClose_)
    {}
 
    void
@@ -574,14 +585,21 @@ public:
    {
       onRecv(buf, len, err);
    }
+
+   void
+   OnClosed(error *err)
+   {
+      onClose(err);
+   }
 };
 
-template<typename OnError, typename OnWrite, typename OnRecv>
+template<typename OnError, typename OnWrite, typename OnRecv, typename OnClosed>
 std::shared_ptr<pollster::FilterEvents>
 CreateFilterEvents(
    const OnError &onError,
    const OnWrite &onWrite,
    const OnRecv &onRecv,
+   const OnClosed &onClosed,
    error *err
 )
 {
@@ -589,7 +607,7 @@ CreateFilterEvents(
    pollster::FilterEvents *rp = nullptr;
    try
    {
-      rp = new CallbackFilterEvents<OnError, OnWrite, OnRecv>(onError, onWrite, onRecv);
+      rp = new CallbackFilterEvents<OnError, OnWrite, OnRecv, OnClosed>(onError, onWrite, onRecv, onClosed);
       r = std::shared_ptr<pollster::FilterEvents>(rp);
       rp = nullptr;
    }
@@ -645,6 +663,13 @@ pollster::StreamSocket::CheckFilter(error *err)
                   self->on_recv(buf, len, err);
                else
                   error_set_unknown(err, "Read performed on abandoned socket");
+            },
+            // onClosed:
+            [weak] (error *err) -> void
+            {
+               auto self = weak.lock();
+               if (self)
+                  self->filterEof = true;
             },
             err
          );

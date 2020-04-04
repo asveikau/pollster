@@ -281,6 +281,7 @@ struct SChannelFilter : public pollster::Filter
       SecBuffer inputBufs[4] = {0}, *in = inputBufs;
       SecBufferDesc input = {0};
       bool found = false;
+      bool eof = false;
 
       in->BufferType = SECBUFFER_DATA;
       in->pvBuffer = buf;
@@ -305,6 +306,9 @@ struct SChannelFilter : public pollster::Filter
       case SEC_E_OK:
          found = true;
          break;
+      case SEC_I_CONTEXT_EXPIRED:
+         eof = true;
+         break;
       default:
          ERROR_SET(err, winsec, status);
       }
@@ -323,6 +327,12 @@ struct SChannelFilter : public pollster::Filter
       {
          buf = nullptr;
          len = 0;
+      }
+
+      if (eof && Events.get())
+      {
+         Events->OnClosed(err);
+         ERROR_CHECK(err);
       }
 
    exit:

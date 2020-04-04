@@ -34,6 +34,9 @@ struct FilterEvents
 
    virtual void
    OnBytesReceived(const void *buf, int len, error *err) = 0;
+
+   virtual void
+   OnClosed(error *err) = 0;
 };
 
 struct Filter

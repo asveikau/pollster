@@ -635,6 +635,13 @@ struct OpenSslFilter : public pollster::Filter
          //
          case SSL_ERROR_SYSCALL:
             break;
+         case SSL_ERROR_ZERO_RETURN:
+            if (Events.get())
+            {
+               Events->OnClosed(err);
+               ERROR_CHECK(err);
+            }
+            break;
          default:
             ERROR_SET(err, openssl, code);
          }

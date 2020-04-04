@@ -82,6 +82,7 @@ class StreamSocket : public std::enable_shared_from_this<StreamSocket>
    };
    std::shared_ptr<SharedState> state;
    std::function<void(const void *buf, int len, const std::function<void(error*)> &onComplete, error *err)> writeFn;
+   bool filterEof;
 public:
    StreamSocket(
       struct waiter *waiter_ = nullptr,
