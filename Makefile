@@ -18,5 +18,11 @@ clean:
 
 export
 depend:
-	env PROJECT=LIBPOLLSTER $(DEPEND) src/*.cc > depend.mk
+	env PROJECT=LIBPOLLSTER $(DEPEND) \
+           src/*.cc \
+           src/async/*.cc \
+           src/backends/*.cc \
+           src/tls/*.cc \
+           src/util/*.cc \
+        > depend.mk
 
