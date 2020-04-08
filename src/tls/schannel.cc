@@ -340,7 +340,7 @@ struct SChannelFilter : public pollster::Filter
    }
 
    void
-   Write(const void *buf, int len, const std::function<void(error*)> &onComplete)
+   Write(const void *buf, size_t len, const std::function<void(error*)> &onComplete)
    {
       error err;
       SECURITY_STATUS status = 0;
@@ -449,7 +449,7 @@ struct SChannelFilter : public pollster::Filter
    }
 
    void
-   OnBytesReceived(const void *buf, int len, error *err)
+   OnBytesReceived(const void *buf, size_t len, error *err)
    {
       bool heap = false;
 

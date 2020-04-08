@@ -301,7 +301,7 @@ struct OpenSslFilter : public pollster::Filter
    }
 
    void
-   AppendWriteToBuffer(const void *buf, int len, const std::function<void(error*)> &onComplete, error *err)
+   AppendWriteToBuffer(const void *buf, size_t len, const std::function<void(error*)> &onComplete, error *err)
    {
       try
       {
@@ -320,7 +320,7 @@ struct OpenSslFilter : public pollster::Filter
    }
 
    void
-   Write(const void *buf, int len, const std::function<void(error*)> &onComplete)
+   Write(const void *buf, size_t len, const std::function<void(error*)> &onComplete)
    {
       error err;
 
@@ -534,7 +534,7 @@ struct OpenSslFilter : public pollster::Filter
    }
 
    void
-   OnBytesReceived(const void *buf, int len, error *err)
+   OnBytesReceived(const void *buf, size_t len, error *err)
    {
       size_t out = 0;
       int r = 0;

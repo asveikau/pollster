@@ -16,6 +16,7 @@
 
 #include <common/error.h>
 #include <functional>
+#include <stddef.h>
 
 namespace pollster
 {
@@ -30,10 +31,10 @@ struct FilterEvents
    OnAsyncError(error *err) {}
 
    virtual void
-   OnBytesToWrite(const void *buf, int len, const std::function<void(error*)> &onComplete) = 0;
+   OnBytesToWrite(const void *buf, size_t len, const std::function<void(error*)> &onComplete) = 0;
 
    virtual void
-   OnBytesReceived(const void *buf, int len, error *err) = 0;
+   OnBytesReceived(const void *buf, size_t len, error *err) = 0;
 
    virtual void
    OnClosed(error *err) = 0;
@@ -46,10 +47,10 @@ struct Filter
    virtual ~Filter() {}
 
    virtual void
-   Write(const void *buf, int len, const std::function<void(error*)> &onComplete) = 0;
+   Write(const void *buf, size_t len, const std::function<void(error*)> &onComplete) = 0;
 
    virtual void
-   OnBytesReceived(const void *buf, int len, error *err) = 0;
+   OnBytesReceived(const void *buf, size_t len, error *err) = 0;
    
    virtual void
    OnEof() {}

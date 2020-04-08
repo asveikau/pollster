@@ -9,6 +9,7 @@
 #include <pollster/socket.h>
 #include <pollster/sockapi.h>
 #include <common/c++/lock.h>
+#include <common/size.h>
 
 #if defined(_WINDOWS)
 #include <pollster/win.h>
@@ -575,13 +576,13 @@ public:
    }
 
    void
-   OnBytesToWrite(const void *buf, int len, const std::function<void(error*)> &onComplete)
+   OnBytesToWrite(const void *buf, size_t len, const std::function<void(error*)> &onComplete)
    {
       onWrite(buf, len, onComplete);
    }
 
    void
-   OnBytesReceived(const void *buf, int len, error *err)
+   OnBytesReceived(const void *buf, size_t len, error *err)
    {
       onRecv(buf, len, err);
    }
@@ -649,18 +650,49 @@ pollster::StreamSocket::CheckFilter(error *err)
                }
             },
             // onWrite:
-            [weak] (const void *buf, int len, const std::function<void(error*)> &onComplete) -> void
+            [weak] (const void *buf, size_t len, const std::function<void(error*)> &onComplete) -> void
             {
                auto self = weak.lock();
                if (self)
-                  self->OnWriteRequested(buf, len, onComplete);
+               {
+                  error err;
+                  std::function<void(error*)> noop;
+                  common::IntIoFuncToSizeT(
+                     [&] (int n, error *err) -> int
+                     {
+                        self->OnWriteRequested(buf, n, (n == len) ? onComplete : noop);
+                        return n;
+                     },
+                     [&] (int n) -> void
+                     {
+                        buf = (const char*)buf + n;
+                        len -= n;
+                     },
+                     len,
+                     &err
+                  );
+               }
             },
             // onRecv:
-            [weak] (const void *buf, int len, error *err) -> void
+            [weak] (const void *buf, size_t len, error *err) -> void
             {
                auto self = weak.lock();
                if (self)
-                  self->on_recv(buf, len, err);
+               {
+                  common::IntIoFuncToSizeT(
+                     [&] (int n, error *err) -> int
+                     {
+                        self->on_recv(buf, n, err);
+                        return n;
+                     },
+                     [&] (int n) -> void
+                     {
+                        buf = (const char*)buf + n;
+                     },
+                     len,
+                     err
+                  );
+               }
                else
                   error_set_unknown(err, "Read performed on abandoned socket");
             },
