@@ -141,6 +141,7 @@ struct SChannelFilter : public pollster::Filter
       SECURITY_STATUS status = 0;
       DWORD flagsOut = 0;
       TimeStamp ts = {0};
+      size_t pad = 0;
 
       SecBufferDesc input = {0}, output = {0};
 
@@ -162,6 +163,7 @@ struct SChannelFilter : public pollster::Filter
          in->BufferType = SECBUFFER_TOKEN;
          in->pvBuffer = (void*)buf;
          in->cbBuffer = len;
+         pad = len - in->cbBuffer;
          ++in;
          in->BufferType = SECBUFFER_EMPTY;
       }
@@ -192,13 +194,21 @@ struct SChannelFilter : public pollster::Filter
       {
          if (inputBufs[1].BufferType == SECBUFFER_EXTRA)
          {
-            buf = (char*)buf + len - inputBufs[1].cbBuffer;
-            len = inputBufs[1].cbBuffer;
+            buf = (char*)buf + (DWORD)len - inputBufs[1].cbBuffer;
+            len = inputBufs[1].cbBuffer + pad;
          }
          else if (status != SEC_E_INCOMPLETE_MESSAGE)
          {
-            buf = nullptr;
-            len = 0;
+            if (pad)
+            {
+               buf = (char*)buf + (DWORD)len;
+               len = pad;
+            }
+            else
+            {
+               buf = nullptr;
+               len = 0;
+            }
          }
       }
 
@@ -282,10 +292,12 @@ struct SChannelFilter : public pollster::Filter
       SecBufferDesc input = {0};
       bool found = false;
       bool eof = false;
+      size_t pad = 0;
 
       in->BufferType = SECBUFFER_DATA;
       in->pvBuffer = buf;
       in->cbBuffer = len;
+      pad = len - in->cbBuffer;
       ++in;
 
       for (int i=0; i<3; ++i)
@@ -320,8 +332,13 @@ struct SChannelFilter : public pollster::Filter
       }
       if ((in = &inputBufs[3])->BufferType == SECBUFFER_EXTRA)
       {
-         buf = (char*)buf + len - in->cbBuffer;
-         len = in->cbBuffer;
+         buf = (char*)buf + (DWORD)len - in->cbBuffer;
+         len = in->cbBuffer + pad;
+      }
+      else if (pad)
+      {
+         buf = (char*)buf + (DWORD)len;
+         len = pad;
       }
       else
       {
