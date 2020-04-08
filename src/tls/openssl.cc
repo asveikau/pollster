@@ -10,6 +10,7 @@
 #include <common/c++/lock.h>
 #include <common/lazy.h>
 #include <common/misc.h>
+#include <common/size.h>
 
 #include <openssl/ssl.h>
 #include <openssl/conf.h>
@@ -796,28 +797,25 @@ int
 readwrite_ex(T *buf, size_t num, size_t *out, InnerFn fn)
 {
    int r = 0;
-   int r2 = 0;
 
    *out = 0;
 
-   while (num > INT_MAX)
-   {
-      int r2 = fn(buf, INT_MAX);
-      if (r2 > 0)
+   error err;
+   common::IntIoFuncToSizeT(
+      [&] (int n, error *err) -> int
       {
-         *out += r2;
-         buf = (char*)buf + r2;
-         num -= r2;
-      }
-      else
+         return fn(buf, n);
+      },
+      [&] (int n) -> void
       {
-         goto exit;
-      }
-   }
-
-   r2 = fn(buf, num);
-   if (r2 > 0)
-      *out += r2;
+         *out += n;
+         buf = (char*)buf + n;
+         num -= n;
+      },
+      num,
+      &err
+   );
+   ERROR_CHECK(&err);
 
 exit:
    if (*out)
