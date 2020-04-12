@@ -7,6 +7,7 @@
 */
 
 #include <pollster/win.h>
+#include <common/misc.h>
 
 namespace
 {
@@ -184,6 +185,129 @@ exit:
       on_error(&err);
 }
 
+#if defined(_M_ARM64) || defined(_M_AMD64) || defined(_M_IA64)
+template<typename T1, typename T2>
+struct ReadWriteHelper : public std::enable_shared_from_this<ReadWriteHelper<T1, T2>>
+{
+   common::Pointer<pollster::waiter> w;
+   std::shared_ptr<common::FileHandle> file;
+   T1 op;
+   T2 buffer;
+   size_t remainingLen;
+   size_t totalLen;
+
+   std::function<void(error *)> on_error;
+   std::function<void(size_t, error *)> on_result;
+
+   void
+   PerformIo(error *err)
+   {
+      auto rc = shared_from_this();
+
+      ReadWrite(
+         w.Get(),
+         file,
+         op,
+         buffer,
+         (DWORD)MIN((size_t)((DWORD)~0U), remainingLen),
+         [rc] (error *err) -> void
+         {
+            rc->OnError(err);
+         },
+         [rc] (DWORD res, error *err) -> void
+         {
+            rc->OnResult(res, err);
+         }
+      );
+   }
+
+   void
+   OnError(error *err)
+   {
+      if (totalLen)
+      {
+         // XXX we discard error info here
+         error_clear(err);
+         on_result(totalLen, err);
+      }
+      else
+      {
+         on_error(err);
+      }
+   }
+
+   void
+   OnResult(DWORD res, error *err)
+   {
+      if (res)
+      {
+         totalLen += res;
+         remainingLen -= res;
+         buffer = (T2*)((char*)buffer + res);
+
+         if (remainingLen)
+         {
+            PerformIo(err);
+            return;
+         }
+      }
+      on_result(totalLen, err);
+   }
+};
+
+template<typename T1, typename T2>
+void
+ReadWrite(
+   pollster::waiter *w,
+   const std::shared_ptr<common::FileHandle> &file,
+   T1 op,
+   T2 buffer,
+   size_t len,
+   const std::function<void(error *)> &on_error,
+   const std::function<void(size_t, error *)> &on_result
+)
+{
+   if (len <= ((DWORD)~0U))
+   {
+      ReadWrite(
+         w, file, op, buffer, (DWORD)len, on_error,
+         [on_result] (DWORD res, error *err) ->  void
+         {
+            on_result(res, err);
+         }
+      );
+   }
+   else
+   {
+      error err;
+      std::shared_ptr<ReadWriteHelper<T1, T2>> p;
+
+      try
+      {
+         p = std::make_shared<ReadWriteHelper<T1, T2>>();
+         p->w = w;
+         p->file = file;
+         p->op = op;
+         p->buffer = buffer;
+         p->remainingLen = len;
+         p->totalLen = 0;
+         p->on_result = on_result;
+         p->on_error = on_error;
+      }
+      catch (std::bad_alloc)
+      {
+         error_set_nomem(&err);
+         on_error(&err);
+         return;
+      }
+
+      p->PerformIo(&err);
+      if (ERROR_FAILED(&err))
+         p->on_error(&err);
+   }
+}
+#endif
+
 } // end namespace
 
 void
@@ -191,9 +315,9 @@ pollster::windows::ReadFileAsync(
    pollster::waiter *w,
    const std::shared_ptr<common::FileHandle> &file,
    void *buffer,
-   DWORD len,
+   size_t len,
    const std::function<void(error *)> &on_error,
-   const std::function<void(DWORD, error *)> &on_result
+   const std::function<void(size_t, error *)> &on_result
 )
 {
    ReadWrite(w, file, ReadFileEx, buffer, len, on_error, on_result);
@@ -204,9 +328,9 @@ pollster::windows::WriteFileAsync(
    pollster::waiter *w,
    const std::shared_ptr<common::FileHandle> &file,
    const void *buffer,
-   DWORD len,
+   size_t len,
    const std::function<void(error *)> &on_error,
-   const std::function<void(DWORD, error *)> &on_result
+   const std::function<void(size_t, error *)> &on_result
 )
 {
    ReadWrite(w, file, WriteFileEx, buffer, len, on_error, on_result);

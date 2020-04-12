@@ -57,6 +57,45 @@ class StreamServer;
 
 class StreamSocket : public std::enable_shared_from_this<StreamSocket>
 {
+public:
+   typedef std::function<void(const void *buf, size_t len, const std::function<void(error*)>&, error *err)> WriteFunction;
+
+   StreamSocket(
+      struct waiter *waiter_ = nullptr,
+      std::shared_ptr<common::SocketHandle> fd_ = std::make_shared<common::SocketHandle>()
+   );
+   StreamSocket(
+      const WriteFunction &writeFn
+   );
+   StreamSocket(const StreamSocket &) = delete;
+   ~StreamSocket();
+
+   std::shared_ptr<Filter> filter;
+
+   bool
+   CheckFilter(error *err);
+
+   std::function<void(ConnectAsyncStatus, const char *, error *)> on_connect_progress;
+   std::function<void(error *)> on_error;
+   std::function<void(const void *, size_t, error *)> on_recv;
+   std::function<void(error *)> on_closed;
+
+   const common::SocketHandle &
+   GetFd() const
+   {
+      return *fd;
+   }
+
+   void
+   Connect(const char *host, const char *service);
+
+   void
+   ConnectUnixDomain(const char *path);
+
+   void
+   Write(const void *buf, size_t len, const std::function<void(error*)> &onComplete=std::function<void(error*)>());
+
+private:
    common::Pointer<waiter> waiter;
    std::shared_ptr<common::SocketHandle> fd;
    common::Pointer<socket_event> sev;
@@ -81,53 +120,17 @@ class StreamSocket : public std::enable_shared_from_this<StreamSocket>
       ~SharedState();
    };
    std::shared_ptr<SharedState> state;
-   std::function<void(const void *buf, int len, const std::function<void(error*)> &onComplete, error *err)> writeFn;
+   WriteFunction writeFn;
    bool filterEof;
-public:
-   StreamSocket(
-      struct waiter *waiter_ = nullptr,
-      std::shared_ptr<common::SocketHandle> fd_ = std::make_shared<common::SocketHandle>()
-   );
-   StreamSocket(
-      const std::function<void(const void *buf, int len, const std::function<void(error*)> &onComplete, error *err)> &writeFn
-   );
-   StreamSocket(const StreamSocket &) = delete;
-   ~StreamSocket();
 
-   std::shared_ptr<Filter> filter;
-
-   bool
-   CheckFilter(error *err);
-
-   std::function<void(ConnectAsyncStatus, const char *, error *)> on_connect_progress;
-   std::function<void(error *)> on_error;
-   std::function<void(const void *, int, error *)> on_recv;
-   std::function<void(error *)> on_closed;
-
-   const common::SocketHandle &
-   GetFd() const
-   {
-      return *fd;
-   }
-
-   void
-   Connect(const char *host, const char *service);
-
-   void
-   ConnectUnixDomain(const char *path);
-
-   void
-   Write(const void *buf, int len, const std::function<void(error*)> &onComplete=std::function<void(error*)>());
-
-private:
    void
    AttachSocket(error *err);
 
    void
-   OnWriteRequested(const void *buf, int len, const std::function<void(error*)> &onComplete);
+   OnWriteRequested(const void *buf, size_t len, const std::function<void(error*)> &onComplete);
 
    void
-   OnBytesReceived(const void *buf, int len, error *err);
+   OnBytesReceived(const void *buf, size_t len, error *err);
 
    void
    OnAsyncError(error *err);

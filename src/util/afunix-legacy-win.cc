@@ -554,7 +554,7 @@ static void
 AfUnixClientHello(
    const common::Pointer<pollster::waiter> &w,
    const void *buffer,
-   int len,
+   size_t len,
    const std::shared_ptr<common::FileHandle> &pipe,
    const std::wstring &pipeName,
    const std::function<void (const std::shared_ptr<common::FileHandle> &, error *)> &on_client,
@@ -668,7 +668,7 @@ pollster::windows::CreateLegacyAfUnixClient(
       buffer->data(),
       buffer->size(),
       std::function<void(error*)>(),
-      [wp, buffer, mainPipe, pipeNameObj, on_client] (DWORD res, error *err) -> void
+      [wp, buffer, mainPipe, pipeNameObj, on_client] (size_t res, error *err) -> void
       {
          AfUnixClientHello(
             wp,
@@ -692,7 +692,7 @@ ReadLoop(
    const common::Pointer<pollster::waiter> &w,
    const std::shared_ptr<common::FileHandle> &hClient,
    const std::shared_ptr<std::vector<unsigned char>> &buf,
-   const std::function<void(const void *, int, error *)> &on_recv,
+   const std::function<void(const void *, size_t, error *)> &on_recv,
    const std::function<void(error *)> &on_closed,
    const std::function<void(error *)> &on_error
 )
@@ -732,8 +732,8 @@ void
 pollster::windows::BindLegacyAfUnixClient(
    waiter *w,
    const std::shared_ptr<common::FileHandle> &hClient,
-   std::function<void(const void *buf, int len, const std::function<void(error*)> &onComplete, error *err)> &writeFn,
-   const std::function<void(const void *, int, error *)> &on_recv,
+   StreamSocket::WriteFunction &writeFn,
+   const std::function<void(const void *, size_t, error *)> &on_recv,
    const std::function<void(error *)> &on_closed,
    const std::function<void(error *)> &on_error_,
    error *err
@@ -772,7 +772,7 @@ pollster::windows::BindLegacyAfUnixClient(
       ERROR_SET(err, nomem);
    }
 
-   writeFn = [wp, hClient, on_error] (const void *buf, int len, const std::function<void(error*)> &onComplete, error *err) -> void
+   writeFn = [wp, hClient, on_error] (const void *buf, size_t len, const std::function<void(error*)> &onComplete, error *err) -> void
    {
       std::shared_ptr<std::vector<unsigned char>> vec;
 
@@ -793,7 +793,7 @@ pollster::windows::BindLegacyAfUnixClient(
          vec->data(),
          len,
          on_error,
-         [hClient, vec, onComplete] (DWORD res, error *err) -> void
+         [hClient, vec, onComplete] (size_t res, error *err) -> void
          {
             if (onComplete)
                onComplete(err);

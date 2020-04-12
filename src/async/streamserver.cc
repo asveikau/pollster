@@ -298,8 +298,8 @@ winFallback:
       {
          try
          {
-            auto writeFn = std::make_shared<std::function<void(const void*, int, const std::function<void(error*)>&, error *)>>();
-            auto writeFnWrapper = [writeFn] (const void *buf, int len, const std::function<void(error*)> &onComplete, error *err) -> void
+            auto writeFn = std::make_shared<StreamSocket::WriteFunction>();
+            auto writeFnWrapper = [writeFn] (const void *buf, size_t len, const std::function<void(error*)> &onComplete, error *err) -> void
             {
                (*writeFn)(buf, len, onComplete, err);
             };
@@ -308,7 +308,7 @@ winFallback:
                waiterp.Get(),
                client,
                *writeFn.get(),
-               [sock] (const void *buf, int len, error *err) -> void
+               [sock] (const void *buf, size_t len, error *err) -> void
                {
                   sock->on_recv(buf, len, err);
                },

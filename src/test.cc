@@ -268,7 +268,7 @@ add_socket(
             sockets.end()
          );
       };
-      sock->on_recv = [] (const void *buf, int len, error *err) -> void
+      sock->on_recv = [] (const void *buf, size_t len, error *err) -> void
       {
          fwrite(buf, 1, len, stdout);
          fflush(stdout);

@@ -24,7 +24,7 @@ pollster::StreamSocket::StreamSocket(
 }
 
 pollster::StreamSocket::StreamSocket(
-   const std::function<void(const void *buf, int len, const std::function<void(error*)> &onComplete, error *err)> &writeFn_
+   const WriteFunction &writeFn_
 )
 : writeFn(writeFn_), filterEof(false)
 {
@@ -171,7 +171,7 @@ winFallback:
 
       struct writeState
       {
-         std::function<void(const void*, int, const std::function<void(error*)> &onComplete, error *)> newWriter;
+         WriteFunction newWriter;
          bool needLock;
          std::vector<unsigned char> pending;
          std::vector<std::function<void(error*)>> pendingCallbacks;
@@ -180,7 +180,7 @@ winFallback:
          writeState() : needLock(true) {}
       };
       auto writeBuf = std::make_shared<writeState>();
-      writeFn = [writeBuf] (const void *buf, int len, const std::function<void(error*)> &onComplete, error *err) -> void
+      writeFn = [writeBuf] (const void *buf, size_t len, const std::function<void(error*)> &onComplete, error *err) -> void
       {
          common::locker l;
 
@@ -220,11 +220,11 @@ winFallback:
 
             // Assign new writer into temp.
             //
-            std::function<void(const void *, int, const std::function<void(error*)> &onComplete, error*)> newWriter;
+            WriteFunction newWriter;
 
             auto weak = std::weak_ptr<pollster::StreamSocket>(shared_from_this());
 
-            auto on_recv = [weak] (const void *buf, int len, error *err) -> void
+            auto on_recv = [weak] (const void *buf, size_t len, error *err) -> void
             {
                auto self = weak.lock();
                if (self)
@@ -334,7 +334,7 @@ pollster::StreamSocket::AttachSocket(error *err)
 
       auto weak = std::weak_ptr<pollster::StreamSocket>(shared_from_this());
 
-      auto on_recv = [weak] (const void *buf, int len, error *err) -> void
+      auto on_recv = [weak] (const void *buf, size_t len, error *err) -> void
       {
          auto self = weak.lock();
          if (self)
@@ -473,7 +473,7 @@ exit:;
 }
 
 void
-pollster::StreamSocket::Write(const void *buf, int len, const std::function<void(error*)> &onComplete)
+pollster::StreamSocket::Write(const void *buf, size_t len, const std::function<void(error*)> &onComplete)
 {
    error err;
 
@@ -505,7 +505,7 @@ exit:
 }
 
 void
-pollster::StreamSocket::OnBytesReceived(const void *buf, int len, error *err)
+pollster::StreamSocket::OnBytesReceived(const void *buf, size_t len, error *err)
 {
    if (CheckFilter(err))
    {
@@ -678,21 +678,7 @@ pollster::StreamSocket::CheckFilter(error *err)
             {
                auto self = weak.lock();
                if (self)
-               {
-                  common::IntIoFuncToSizeT(
-                     [&] (int n, error *err) -> int
-                     {
-                        self->on_recv(buf, n, err);
-                        return n;
-                     },
-                     [&] (int n) -> void
-                     {
-                        buf = (const char*)buf + n;
-                     },
-                     len,
-                     err
-                  );
-               }
+                  self->on_recv(buf, len, err);
                else
                   error_set_unknown(err, "Read performed on abandoned socket");
             },
@@ -716,7 +702,7 @@ exit:
 }
 
 void
-pollster::StreamSocket::OnWriteRequested(const void *buf, int len, const std::function<void(error*)> &onComplete)
+pollster::StreamSocket::OnWriteRequested(const void *buf, size_t len, const std::function<void(error*)> &onComplete)
 {
    error err;
    common::locker l;

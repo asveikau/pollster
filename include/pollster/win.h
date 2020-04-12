@@ -151,9 +151,9 @@ namespace windows
       waiter *w,
       const std::shared_ptr<common::FileHandle> &file,
       void *buffer,
-      DWORD len,
+      size_t len,
       const std::function<void(error *)> &on_error,
-      const std::function<void(DWORD, error *)> &on_result
+      const std::function<void(size_t, error *)> &on_result
    );
 
    void
@@ -161,9 +161,9 @@ namespace windows
       waiter *w,
       const std::shared_ptr<common::FileHandle> &file,
       const void *buffer,
-      DWORD len,
+      size_t len,
       const std::function<void(error *)> &on_error,
-      const std::function<void(DWORD, error *)> &on_result
+      const std::function<void(size_t, error *)> &on_result
    );
 
    void
@@ -186,8 +186,8 @@ namespace windows
    BindLegacyAfUnixClient(
       waiter *w,
       const std::shared_ptr<common::FileHandle> &hClient,
-      std::function<void(const void *buf, int len, const std::function<void(error*)> &onComplete, error *err)> &writeFn,
-      const std::function<void(const void *, int, error *)> &on_recv,
+      std::function<void(const void *buf, size_t len, const std::function<void(error*)> &onComplete, error *err)> &writeFn,
+      const std::function<void(const void *, size_t, error *)> &on_recv,
       const std::function<void(error *)> &on_closed,
       const std::function<void(error *)> &on_error,
       error *err
