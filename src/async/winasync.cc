@@ -199,6 +199,15 @@ struct ReadWriteHelper : public std::enable_shared_from_this<ReadWriteHelper<T1,
    std::function<void(error *)> on_error;
    std::function<void(size_t, error *)> on_result;
 
+   ReadWriteHelper(
+      pollster::waiter *w_,
+      const std::shared_ptr<common::FileHandle> &file_,
+      const T1 & op_,
+      T2 &buffer_,
+      size_t len
+   )
+   : w(w_), file(file_), op(op_), buffer(buffer_), remainingLen(len), totalLen(0) {}
+
    DWORD
    GetCurrentIoSize()
    {
@@ -293,13 +302,7 @@ ReadWrite(
 
       try
       {
-         p = std::make_shared<ReadWriteHelper<T1, T2>>();
-         p->w = w;
-         p->file = file;
-         p->op = op;
-         p->buffer = buffer;
-         p->remainingLen = len;
-         p->totalLen = 0;
+         p = std::make_shared<ReadWriteHelper<T1, T2>>(w, file, op, buffer, len);
          p->on_result = on_result;
          p->on_error = on_error;
       }
