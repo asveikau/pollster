@@ -199,6 +199,13 @@ struct ReadWriteHelper : public std::enable_shared_from_this<ReadWriteHelper<T1,
    std::function<void(error *)> on_error;
    std::function<void(size_t, error *)> on_result;
 
+   DWORD
+   GetCurrentIoSize()
+   {
+      const size_t dwordMax = ((DWORD)~0U);
+      return (DWORD)(MIN(dwordMax, remainingLen));
+   }
+
    void
    PerformIo(error *err)
    {
@@ -209,7 +216,7 @@ struct ReadWriteHelper : public std::enable_shared_from_this<ReadWriteHelper<T1,
          file,
          op,
          buffer,
-         (DWORD)MIN((size_t)((DWORD)~0U), remainingLen),
+         GetCurrentIoSize(),
          [rc] (error *err) -> void
          {
             rc->OnError(err);
@@ -241,11 +248,13 @@ struct ReadWriteHelper : public std::enable_shared_from_this<ReadWriteHelper<T1,
    {
       if (res)
       {
+         bool partial = (res < GetCurrentIoSize());
+
          totalLen += res;
          remainingLen -= res;
          buffer = (T2*)((char*)buffer + res);
 
-         if (remainingLen)
+         if (remainingLen && !partial)
          {
             PerformIo(err);
             return;
