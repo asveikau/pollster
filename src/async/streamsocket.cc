@@ -302,8 +302,10 @@ winFallback:
 #endif
 }
 
-static void
-CheckIoError(int &r, error *err)
+namespace {
+
+void
+CheckIoError(pollster::sendrecv_retval &r, error *err)
 {
    if (r < 0)
    {
@@ -322,6 +324,8 @@ CheckIoError(int &r, error *err)
    }
 exit:;
 }
+
+} // end namespace
 
 void
 pollster::StreamSocket::AttachSocket(error *err)
@@ -369,7 +373,7 @@ pollster::StreamSocket::AttachSocket(error *err)
                sev->on_signal = [fd, state, sev, on_recv, on_closed, weak] (error *err) -> void
                {
                   char buf[4096];
-                  int r = 0;
+                  pollster::sendrecv_retval r = 0;
                   common::locker l;
                   auto &writeBuffer = state->writeBuffer;
                   size_t written = 0;
@@ -379,7 +383,7 @@ pollster::StreamSocket::AttachSocket(error *err)
 
                   l.acquire(state->writeLock);
 
-                  while (writeBuffer.size() && (r = send(fd->Get(), writeBuffer.data(), writeBuffer.size(), 0)) > 0)
+                  while (writeBuffer.size() && (r = send(fd->Get(), writeBuffer.data(), MIN(SENDRECV_MAX, writeBuffer.size()), 0)) > 0)
                   {
                      written += r;
                      writeBuffer.erase(writeBuffer.begin(), writeBuffer.begin() + r);

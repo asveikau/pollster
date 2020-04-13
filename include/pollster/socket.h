@@ -29,6 +29,7 @@
 
 #include <common/error.h>
 #include <common/misc.h>
+#include <common/size.h>
 
 #undef gai_strerror
 #define gai_strerror gai_strerrorA
@@ -194,8 +195,18 @@ typedef struct sockaddr_un
 
 namespace pollster
 {
-   void
-   sockaddr_un_set(struct sockaddr_un *addr, const char *path, error *err);
-}
+void
+sockaddr_un_set(struct sockaddr_un *addr, const char *path, error *err);
+
+#if defined(_WINDOWS)
+typedef int sendrecv_retval, sendrecv_size;
+#define SENDRECV_MAX INT_MAX
+#else
+typedef ssize_t sendrecv_retval;
+typedef size_t sendrecv_size;
+#define SENDRECV_MAX ((size_t)SSIZE_MAX)
+#endif
+
+} // end namespace
 
 #endif
