@@ -658,24 +658,7 @@ pollster::StreamSocket::CheckFilter(error *err)
             {
                auto self = weak.lock();
                if (self)
-               {
-                  error err;
-                  std::function<void(error*)> noop;
-                  common::IntIoFuncToSizeT(
-                     [&] (int n, error *err) -> int
-                     {
-                        self->OnWriteRequested(buf, n, (n == len) ? onComplete : noop);
-                        return n;
-                     },
-                     [&] (int n) -> void
-                     {
-                        buf = (const char*)buf + n;
-                        len -= n;
-                     },
-                     len,
-                     &err
-                  );
-               }
+                  self->OnWriteRequested(buf, len, onComplete);
             },
             // onRecv:
             [weak] (const void *buf, size_t len, error *err) -> void
