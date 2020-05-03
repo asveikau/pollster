@@ -23,6 +23,7 @@ LIBPOLLSTER_SRC += \
    $(LIBPOLLSTER_ROOT)src/util/afunix.cc \
    $(LIBPOLLSTER_ROOT)src/util/commonqueue.cc \
    $(LIBPOLLSTER_ROOT)src/util/messagequeue.cc \
+   $(LIBPOLLSTER_ROOT)src/util/sa-string.cc \
    $(LIBPOLLSTER_ROOT)src/util/socklen.cc
 
 ifeq ($(PLATFORM), windows)

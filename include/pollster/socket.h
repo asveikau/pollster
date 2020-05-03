@@ -169,6 +169,12 @@ namespace pollster
       sockaddr_set_af((sockaddr*)in6, AF_INET6);
    }
 
+   const char *
+   sockaddr_to_string(struct sockaddr *sa, char *buf, socklen_t len);
+
+   bool
+   string_to_sockaddr(struct sockaddr *sa, const char *str);
+
    extern
    bool
    AbstractAfUnixSupported;

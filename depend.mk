@@ -53,6 +53,8 @@ $(LIBPOLLSTER_ROOT)src/util/commonqueue.o: $(LIBPOLLSTER_ROOT)src/util/commonque
 	$(CXX) $(CXXFLAGS) $(CFLAGS) $(LIBPOLLSTER_CXXFLAGS) $(LIBPOLLSTER_CFLAGS) -c -o $@ $<
 $(LIBPOLLSTER_ROOT)src/util/messagequeue.o: $(LIBPOLLSTER_ROOT)src/util/messagequeue.cc $(LIBCOMMON_ROOT)include/common/c++/lock.h $(LIBCOMMON_ROOT)include/common/error.h $(LIBCOMMON_ROOT)include/common/mutex.h $(LIBCOMMON_ROOT)include/common/rwlock-self.h $(LIBCOMMON_ROOT)include/common/rwlock.h $(LIBCOMMON_ROOT)include/common/thread.h $(LIBCOMMON_ROOT)include/common/waiter.h $(LIBPOLLSTER_ROOT)include/pollster/messagequeue.h
 	$(CXX) $(CXXFLAGS) $(CFLAGS) $(LIBPOLLSTER_CXXFLAGS) $(LIBPOLLSTER_CFLAGS) -c -o $@ $<
+$(LIBPOLLSTER_ROOT)src/util/sa-string.o: $(LIBPOLLSTER_ROOT)src/util/sa-string.cc $(LIBCOMMON_ROOT)include/common/error.h $(LIBCOMMON_ROOT)include/common/misc.h $(LIBCOMMON_ROOT)include/common/mutex.h $(LIBCOMMON_ROOT)include/common/size.h $(LIBPOLLSTER_ROOT)include/pollster/socket.h
+	$(CXX) $(CXXFLAGS) $(CFLAGS) $(LIBPOLLSTER_CXXFLAGS) $(LIBPOLLSTER_CFLAGS) -c -o $@ $<
 $(LIBPOLLSTER_ROOT)src/util/socklen.o: $(LIBPOLLSTER_ROOT)src/util/socklen.cc $(LIBCOMMON_ROOT)include/common/error.h $(LIBCOMMON_ROOT)include/common/misc.h $(LIBCOMMON_ROOT)include/common/mutex.h $(LIBCOMMON_ROOT)include/common/size.h $(LIBPOLLSTER_ROOT)include/pollster/socket.h
 	$(CXX) $(CXXFLAGS) $(CFLAGS) $(LIBPOLLSTER_CXXFLAGS) $(LIBPOLLSTER_CFLAGS) -c -o $@ $<
 $(LIBPOLLSTER_ROOT)src/util/winsock.o: $(LIBPOLLSTER_ROOT)src/util/winsock.cc $(LIBCOMMON_ROOT)include/common/error.h $(LIBCOMMON_ROOT)include/common/lazy.h $(LIBCOMMON_ROOT)include/common/misc.h $(LIBCOMMON_ROOT)include/common/mutex.h $(LIBCOMMON_ROOT)include/common/size.h $(LIBPOLLSTER_ROOT)include/pollster/socket.h
