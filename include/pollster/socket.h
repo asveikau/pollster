@@ -81,6 +81,21 @@ setsockopt_compat(SOCKET sockfd, int level, int optname, const void *optval, soc
 #define getsockopt getsockopt_compat
 #define setsockopt setsockopt_compat
 
+static INLINE
+int
+sendto_compat(SOCKET sockfd, const void *buf, int len, int flags, const sockaddr *addr, int addrlen)
+{
+   return sendto(sockfd, (const char*)buf, len, flags, addr, addrlen);
+}
+static INLINE
+int
+recvfrom_compat(SOCKET sockfd, void *buf, int len, int flags, sockaddr *addr, int *addrlen)
+{
+   return recvfrom(sockfd, (char*)buf, len, flags, addr, addrlen);
+}
+#define sendto   sendto_compat
+#define recvfrom recvfrom_compat
+
 #else
 
 #include <common/mutex.h> // XXX - workaround for Sun mutex name conflict.
