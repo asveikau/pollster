@@ -167,7 +167,7 @@ namespace pollster
    socklen(int af);
 
    int
-   socklen(struct sockaddr *);
+   socklen(const struct sockaddr *);
 
    void
    sockaddr_set_af(struct sockaddr *, int af);

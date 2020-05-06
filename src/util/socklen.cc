@@ -26,7 +26,7 @@ pollster::socklen(int af)
 }
 
 int
-pollster::socklen(struct sockaddr *sa)
+pollster::socklen(const struct sockaddr *sa)
 {
 #ifdef HAVE_SA_LEN
    return sa->sa_len;
