@@ -39,6 +39,9 @@ struct SslArgs
 };
 
 void
+InitSslLibrary(error *err);
+
+void
 CreateSslFilter(
    SslArgs &args,
    std::shared_ptr<Filter> &res,

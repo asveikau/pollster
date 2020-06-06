@@ -578,3 +578,8 @@ exit:
       res = nullptr;
    }
 }
+
+void
+pollster::InitSslLibrary(error *err)
+{
+}

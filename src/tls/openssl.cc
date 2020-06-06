@@ -18,6 +18,7 @@
 #include <openssl/opensslv.h>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
+#include <openssl/x509_vfy.h>
 
 #include <limits.h>
 #include <string.h>
@@ -25,6 +26,8 @@
 #include <vector>
 
 namespace {
+
+X509_STORE *x509_store = nullptr;
 
 #ifndef SSL_MODE_ASYNC
 #define SSL_MODE_ASYNC    0
@@ -73,25 +76,42 @@ error_set_openssl_verify(error *err, long code)
 void
 init_library(error *err)
 {
-   // SSL_library_init is required below version 1.1.0.
-   // Version 1.1.0 introduces OPENSSL_init_ssl() but documents that it is
-   // not required.
-   //
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
    static lazy_init_state st = {0};
 
    lazy_init(
       &st,
       [] (void *context, error *err) -> void
       {
+         // SSL_library_init is required below version 1.1.0.
+         // Version 1.1.0 introduces OPENSSL_init_ssl() but documents that it is
+         // not required.
+         //
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
          SSL_library_init();
          SSL_load_error_strings();
          OPENSSL_config(nullptr);
+#endif
+
+         // Initialize the cert store early.  This lets us do things like run
+         // SSL clients in a chroot, so long as we hit this code first.
+         //
+         auto store = X509_STORE_new();
+         if (!store)
+            ERROR_SET(err, nomem);
+
+         if (!X509_STORE_set_default_paths(store))
+            ERROR_SET(err, unknown, "Error loading x509 store");
+
+         x509_store = store;
+         store = nullptr;
+
+      exit:
+         if (store)
+            X509_STORE_free(store);
       },
       nullptr,
       err
    );
-#endif
 }
 
 #if (OPENSSL_VERSION_NUMBER < 0x10101000L) || defined(LIBRESSL_VERSION_NUMBER)
@@ -192,8 +212,7 @@ struct OpenSslFilter : public pollster::Filter
          if (!X509_VERIFY_PARAM_set1_host(param, args.HostName, strlen(args.HostName)))
             ERROR_SET(err, unknown, "Failed to set hostname");
 
-         if (!SSL_CTX_set_default_verify_paths(ctx))
-            ERROR_SET(err, unknown, "Failed to load default CA");
+         SSL_CTX_set_cert_store(ctx, x509_store);
 
          SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, nullptr);
 
@@ -873,3 +892,9 @@ BIO_read_ex(BIO *bio, void *buf, size_t num, size_t *read)
 
 } // end namespace
 #endif
+
+void
+pollster::InitSslLibrary(error *err)
+{
+   init_library(err);
+}

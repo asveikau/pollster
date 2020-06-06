@@ -380,6 +380,11 @@ exit:
    }
 }
 
+void
+pollster::InitSslLibrary(error *err)
+{
+}
+
 namespace {
 const char *
 GetCipherSuiteName(SSLCipherSuite suite)
