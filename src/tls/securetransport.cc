@@ -17,6 +17,9 @@
 #include <common/c++/lock.h>
 #include <common/misc.h>
 
+#include <sys/stat.h>
+#include <unistd.h>
+
 #include <string.h>
 #include <utility>
 #include <vector>
@@ -89,6 +92,10 @@ struct SecureTransportFilter : public pollster::Filter
 
       cb = args.Callbacks;
       side = args.ServerMode ? kSSLServerSide : kSSLClientSide;
+
+      struct stat statbuf;
+      if (stat("/dev/random", &statbuf))
+         ERROR_SET(err, unknown, "SecureTransport does not work without /dev/random");
 
       ssl = SSLCreateContext(nullptr, side, kSSLStreamType);
       if (!ssl)
