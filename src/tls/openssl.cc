@@ -8,6 +8,7 @@
 
 #include <pollster/ssl.h>
 #include <common/c++/lock.h>
+#include <common/c++/new.h>
 #include <common/lazy.h>
 #include <common/misc.h>
 #include <common/size.h>
@@ -101,6 +102,9 @@ error_set_openssl_verify(error *err, long code)
 }
 
 void
+SetCertificate(SSL *ctx, pollster::Certificate *cert, error *err);
+
+void
 init_library(error *err)
 {
    static lazy_init_state st = {0};
@@ -113,10 +117,20 @@ init_library(error *err)
          // Version 1.1.0 introduces OPENSSL_init_ssl() but documents that it is
          // not required.
          //
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
          SSL_library_init();
          SSL_load_error_strings();
          OPENSSL_config(nullptr);
+         OpenSSL_add_all_algorithms();
+#else
+         OPENSSL_init_ssl(
+            OPENSSL_INIT_LOAD_SSL_STRINGS | OPENSSL_INIT_LOAD_CRYPTO_STRINGS,
+            nullptr
+         );
+         OPENSSL_init_crypto(
+            OPENSSL_INIT_ADD_ALL_CIPHERS | OPENSSL_INIT_ADD_ALL_DIGESTS | OPENSSL_INIT_LOAD_CONFIG,
+            nullptr
+         );
 #endif
 
          // Initialize the cert store early.  This lets us do things like run
@@ -142,6 +156,7 @@ init_library(error *err)
 }
 
 #if (OPENSSL_VERSION_NUMBER < 0x10101000L) || defined(LIBRESSL_VERSION_NUMBER)
+
 #define NEED_EX_IO
 
 int
@@ -155,6 +170,15 @@ BIO_write_ex(BIO *bio, const void *buf, size_t num, size_t *written);
 
 int
 BIO_read_ex(BIO *bio, void *buf, size_t num, size_t *read);
+
+void
+SSL_CTX_set1_cert_store(SSL_CTX *ctx, X509_STORE *store)
+{
+   SSL_CTX_set_cert_store(ctx, store);
+   if (store)
+      X509_STORE_up_ref(store);
+}
+
 #endif
 
 struct OpenSslFilter : public pollster::Filter
@@ -227,6 +251,29 @@ struct OpenSslFilter : public pollster::Filter
       if (!(ssl = SSL_new(ctx)))
          ERROR_SET(err, unknown, "Failed to create SSL object");
 
+      if (!BIO_new_bio_pair(&contextBio, 0, &networkBio, 0))
+         ERROR_SET(err, unknown, "Failed to create bio pair");
+
+      SSL_set_bio(ssl, contextBio, contextBio);
+
+      if (args.ServerMode)
+         SSL_set_accept_state(ssl);
+      else
+         SSL_set_connect_state(ssl);
+
+      SSL_set_mode(
+         ssl,
+         SSL_MODE_ENABLE_PARTIAL_WRITE |
+            SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
+            SSL_MODE_ASYNC |
+            SSL_MODE_AUTO_RETRY
+      );
+
+      SSL_CTX_set_options(ctx, SSL_OP_ALL | SSL_OP_NO_COMPRESSION);
+      SSL_CTX_set_ecdh_auto(ctx, 1);
+
+      SSL_CTX_set1_cert_store(ctx, x509_store);
+
       if (args.HostName)
       {
          if (!SSL_set_tlsext_host_name(ssl, args.HostName))
@@ -239,30 +286,16 @@ struct OpenSslFilter : public pollster::Filter
          if (!X509_VERIFY_PARAM_set1_host(param, args.HostName, strlen(args.HostName)))
             ERROR_SET(err, unknown, "Failed to set hostname");
 
-         SSL_CTX_set_cert_store(ctx, x509_store);
-
          SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, nullptr);
 
          hostnameSet = true;
       }
 
-      if (!BIO_new_bio_pair(&contextBio, 0, &networkBio, 0))
-         ERROR_SET(err, unknown, "Failed to create bio pair");
-
-      SSL_set_bio(ssl, contextBio, contextBio);
-
-      SSL_set_mode(
-         ssl,
-         SSL_MODE_ENABLE_PARTIAL_WRITE |
-            SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
-            SSL_MODE_ASYNC |
-            SSL_MODE_AUTO_RETRY
-      );
-
-      if (args.ServerMode)
-         SSL_set_accept_state(ssl);
-      else
-         SSL_set_connect_state(ssl);
+      if (args.Certificate.Get())
+      {
+         SetCertificate(ssl, args.Certificate.Get(), err);
+         ERROR_CHECK(err);
+      }
    exit:;
    }
 
@@ -381,6 +414,9 @@ struct OpenSslFilter : public pollster::Filter
 
          if (!initialHandshake)
          {
+            if (SSL_is_server(ssl))
+               goto exit;
+
             TryHandshakeUnlocked(&err);
             ERROR_CHECK(&err);
 
@@ -764,8 +800,11 @@ struct OpenSslFilter : public pollster::Filter
                ERROR_CHECK(err);
                // fall through
             case SSL_ERROR_WANT_WRITE:
+            case SSL_ERROR_SYSCALL:
                break;
             default:
+               if (TryCiphertextWriteUnlocked(err))
+                  break;
                ERROR_SET(err, openssl, code);
             }
          }
@@ -799,7 +838,8 @@ struct OpenSslFilter : public pollster::Filter
    void
    OnEventsInitialized(error *err)
    {
-      TryHandshake(err);
+      if (!SSL_is_server(ssl))
+         TryHandshake(err);
    }
 };
 
@@ -924,4 +964,165 @@ void
 pollster::InitSslLibrary(error *err)
 {
    init_library(err);
+}
+
+static
+void
+ReadIntoBio(common::Stream *stream, BIO *bio, error *err)
+{
+   char buf[4096];
+
+   for (;;)
+   {
+      auto r = stream->Read(buf, sizeof(buf), err);
+      ERROR_CHECK(err);
+      if (r <= 0)
+         break;
+
+      auto p = buf;
+   retry:
+      size_t out = 0;
+      int r2 = BIO_write_ex(bio, p, r, &out);
+      if (r2 == 1)
+      {
+         p += out;
+         r -= out;
+         if (r)
+            goto retry;
+      }
+      else if (!BIO_should_retry(bio))
+         ERROR_SET(err, unknown, "BIO_write_ex error");
+   }
+exit:;
+}
+
+namespace {
+
+struct OpenSslCert : public pollster::Certificate
+{
+   X509 *cert;
+   std::vector<X509*> intermediaries;
+   EVP_PKEY *key;
+
+   OpenSslCert() : cert(nullptr), key(nullptr) {}
+   ~OpenSslCert()
+   {
+      if (cert)
+         X509_free(cert);
+      for (auto i : intermediaries)
+         X509_free(i);
+      if (key)
+         EVP_PKEY_free(key);
+   }
+
+   void *
+   GetNativeObject() { return cert; }
+};
+
+void
+SetCertificate(SSL *ssl, pollster::Certificate *genericCert, error *err)
+{
+   auto cert = (OpenSslCert *)genericCert;
+
+   if (!SSL_use_certificate(ssl, cert->cert))
+      ERROR_SET(err, unknown, "Failed to set certificate");
+
+   SSL_clear_chain_certs(ssl);
+
+   for (auto intermediary : cert->intermediaries)
+   {
+      if (!SSL_add1_chain_cert(ssl, intermediary))
+         ERROR_SET(err, unknown, "Failed to add to cert chain");
+   }
+
+   if (!SSL_use_PrivateKey(ssl, cert->key))
+      ERROR_SET(err, unknown, "Failed to set private key");
+
+   if (!SSL_check_private_key(ssl))
+      ERROR_SET(err, unknown, "Private key check failed");
+exit:;
+}
+
+} // end namepsace
+
+void
+pollster::CreateCertificate(
+   common::Stream *stream,
+   Certificate **output,
+   error *err
+)
+{
+   common::Pointer<OpenSslCert> r;
+   BIO *bio = nullptr;
+   X509 *intermediary = nullptr;
+   int64_t oldPos = 0;
+
+   auto initBio = [&] () -> void
+   {
+      if (bio)
+         BIO_free(bio);
+
+      bio = BIO_new(BIO_s_mem());
+      if (!bio)
+         ERROR_SET(err, nomem);
+
+      ReadIntoBio(stream, bio, err);
+      ERROR_CHECK(err);
+
+      BIO_set_mem_eof_return(bio, 0);
+   exit:;
+   };
+
+   init_library(err);
+   ERROR_CHECK(err);
+
+   oldPos = stream->GetPosition(err);
+   ERROR_CHECK(err);
+
+   initBio();
+   ERROR_CHECK(err);
+
+   common::New(r, err);
+   ERROR_CHECK(err);
+
+   r->cert = PEM_read_bio_X509_AUX(bio, nullptr, nullptr, nullptr);
+   if (!r->cert)
+      ERROR_SET(err, unknown, "Failed to load cert");
+
+   while ((intermediary = PEM_read_bio_X509(bio, nullptr, nullptr, nullptr)))
+   {
+      try
+      {
+         r->intermediaries.push_back(intermediary);
+      }
+      catch (std::bad_alloc)
+      {
+         ERROR_SET(err, nomem);
+      }
+   }
+
+   ERR_clear_error();
+
+   // Need to rewind the stream to read private key...
+   //
+   stream->Seek(oldPos, SEEK_SET, err);
+   ERROR_CHECK(err);
+   initBio();
+   ERROR_CHECK(err);
+
+   r->key = PEM_read_bio_PrivateKey(bio, nullptr, nullptr, nullptr);
+   if (!r->key)
+      ERROR_SET(err, unknown, "Failed to read private key");
+
+   if (!X509_check_private_key(r->cert, r->key))
+      ERROR_SET(err, unknown, "Cert does not match key");
+
+exit:
+   if (ERROR_FAILED(err))
+      r = nullptr;
+   if (bio)
+      BIO_free(bio);
+   if (intermediary)
+      X509_free(intermediary);
+   *output = r.Detach();
 }

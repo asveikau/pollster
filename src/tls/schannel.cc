@@ -7,7 +7,9 @@
 */
 
 #include <pollster/ssl.h>
+#include <common/c++/linereader.h>
 #include <common/c++/lock.h>
+#include <common/c++/new.h>
 #include <common/misc.h>
 #include <string.h>
 #include <vector>
@@ -16,6 +18,7 @@
 #include <security.h>
 #include <schannel.h>
 
+#pragma comment(lib, "crypt32.lib")
 #pragma comment(lib, "secur32.lib")
 
 namespace {
@@ -34,6 +37,7 @@ struct SChannelFilter : public pollster::Filter
    std::vector<char> pendingWrites;
    std::vector<std::pair<size_t, std::function<void(error*)>>> pendingWriteCallbacks;
    pollster::SslArgs::CallbackStruct cb;
+   common::Pointer<pollster::Certificate> Certificate;
 
    SChannelFilter()
       : SecInterface(nullptr),
@@ -86,16 +90,28 @@ struct SChannelFilter : public pollster::Filter
       SECURITY_STATUS status = 0;
       TimeStamp ts = {0};
       SCHANNEL_CRED cred = {0};
+      PCCERT_CONTEXT certContext = nullptr;
 
       if (Valid(creds))
          goto exit;
 
       cred.dwVersion = SCHANNEL_CRED_VERSION;
 
-      if (!remoteName)
-         cred.dwFlags |= SCH_CRED_MANUAL_CRED_VALIDATION;
-      else
-         cred.dwFlags |= SCH_CRED_AUTO_CRED_VALIDATION;
+      if (Certificate.Get())
+      {
+         certContext = (PCCERT_CONTEXT)Certificate->GetNativeObject();
+
+         cred.cCreds = 1;
+         cred.paCred = &certContext;
+      }
+
+      if (!server)
+      {
+         if (!remoteName)
+            cred.dwFlags |= SCH_CRED_MANUAL_CRED_VALIDATION;
+         else
+            cred.dwFlags |= SCH_CRED_AUTO_CRED_VALIDATION;
+      }
 
       status = SecInterface->AcquireCredentialsHandle(
          nullptr,
@@ -117,6 +133,7 @@ struct SChannelFilter : public pollster::Filter
    Initialize(pollster::SslArgs &args, error *err)
    {
       this->server = args.ServerMode;
+      Certificate = args.Certificate;
 
       cb = std::move(args.Callbacks);
 
@@ -174,21 +191,39 @@ struct SChannelFilter : public pollster::Filter
 
       outputBuf.BufferType = SECBUFFER_TOKEN;
 
-      status = SecInterface->InitializeSecurityContext(
-         &creds,
-         Valid(context) ? &context : nullptr,
-         remoteName,
-         ISC_REQ_SEQUENCE_DETECT | ISC_REQ_REPLAY_DETECT | ISC_REQ_CONFIDENTIALITY |
-            ISC_RET_EXTENDED_ERROR | ISC_REQ_ALLOCATE_MEMORY | ISC_REQ_STREAM,
-         0,
-         SECURITY_NATIVE_DREP,
-         (buf && len) ? &input : nullptr,
-         0,
-         Valid(context) ? nullptr : &context,
-         &output,
-         &flagsOut,
-         &ts
-      );
+      if (server)
+      {
+         status = SecInterface->AcceptSecurityContext(
+            &creds,
+            Valid(context) ? &context : nullptr,
+            (buf && len) ? &input : nullptr,
+            ISC_REQ_SEQUENCE_DETECT | ISC_REQ_REPLAY_DETECT | ISC_REQ_CONFIDENTIALITY |
+               ISC_RET_EXTENDED_ERROR | ISC_REQ_ALLOCATE_MEMORY | ISC_REQ_STREAM,
+            SECURITY_NATIVE_DREP,
+            Valid(context) ? nullptr : &context,
+            &output,
+            &flagsOut,
+            &ts
+         );
+      }
+      else
+      {
+         status = SecInterface->InitializeSecurityContext(
+            &creds,
+            Valid(context) ? &context : nullptr,
+            remoteName,
+            ISC_REQ_SEQUENCE_DETECT | ISC_REQ_REPLAY_DETECT | ISC_REQ_CONFIDENTIALITY |
+               ISC_RET_EXTENDED_ERROR | ISC_REQ_ALLOCATE_MEMORY | ISC_REQ_STREAM,
+            0,
+            SECURITY_NATIVE_DREP,
+            (buf && len) ? &input : nullptr,
+            0,
+            Valid(context) ? nullptr : &context,
+            &output,
+            &flagsOut,
+            &ts
+         );
+      }
 
       if (buf && len)
       {
@@ -547,6 +582,38 @@ struct SChannelFilter : public pollster::Filter
    }
 };
 
+struct Win32Cert : public pollster::Certificate
+{
+   PCCERT_CONTEXT ctx;
+
+   Win32Cert() : ctx(nullptr) {}
+   ~Win32Cert() { if (ctx) CertFreeCertificateContext(ctx); }
+
+   void *GetNativeObject() { return (void*)ctx; }
+
+   void
+   Create(DWORD encoding, const void *buf, size_t len, error *err)
+   {
+      if (len > ((DWORD)~0U))
+         ERROR_SET(err, unknown, "Too big for dword length");
+      if (ctx)
+         CertFreeCertificateContext(ctx);
+      ctx = CertCreateCertificateContext(encoding, (PBYTE)buf, (DWORD)len);
+      if (!ctx)
+         ERROR_SET(err, win32, GetLastError());
+   exit:;
+   }
+};
+
+struct Win32Store
+{
+   HCERTSTORE store;
+
+   Win32Store() : store(nullptr) {}
+   Win32Store(const Win32Store&) = delete;
+   ~Win32Store() { if (store) CertCloseStore(store, 0); }
+};
+
 } // end namespace
 
 void
@@ -582,4 +649,271 @@ exit:
 void
 pollster::InitSslLibrary(error *err)
 {
+}
+
+template<typename Callback>
+static
+void
+ParsePemFile(
+   common::Stream *stream,
+   Callback onSection,
+   error *err
+)
+{
+   common::LineReader lineReader(stream);
+   char *line = nullptr;
+   std::string currentItem;
+   std::string payload;
+   std::vector<unsigned char> payloadDecoded;
+
+   while ((line = lineReader.ReadLine(err)))
+   {
+      static const char dashes[] = "-----";
+      size_t len = strlen(line);
+
+      while (len && strchr(" \t", line[len-1]))
+      {
+         line[--len] = 0;
+      }
+
+      if (!*line)
+         continue;
+
+      if (len > sizeof(dashes)-1 &&
+          !strcmp(line+len-(sizeof(dashes)-1), dashes) &&
+          !strncmp(line, dashes, sizeof(dashes)-1))
+      {
+         line += sizeof(dashes)-1;
+         len -= (sizeof(dashes) - 1) * 2;
+         line[len] = 0;
+
+         static const char begin[] = "BEGIN ";
+         static const char end[] = "END ";
+
+         if (!strncmp(line, begin, sizeof(begin)-1))
+         {
+            line += sizeof(begin)-1;
+            len -= sizeof(begin)-1;
+
+            if (currentItem.size())
+               ERROR_SET(err, unknown, "BEGIN without END");
+            try
+            {
+               currentItem = line;
+            }
+            catch (std::bad_alloc)
+            {
+               ERROR_SET(err, nomem);
+            }
+         }
+         else if (!strncmp(line, end, sizeof(end)-1))
+         {
+            line += sizeof(end)-1;
+            len -= sizeof(end)-1;
+
+            if (!*line || currentItem != line)
+               ERROR_SET(err, unknown, "Mismatched BEGIN and END");
+
+            try
+            {
+               payloadDecoded.resize(payload.size() / 3 * 4);
+            }
+            catch (std::bad_alloc)
+            {
+               ERROR_SET(err, nomem);
+            }
+
+            if (payloadDecoded.size() > (DWORD)~0U)
+               ERROR_SET(err, unknown, "Payload too big");
+
+            DWORD len = payloadDecoded.size();
+            auto ret = CryptStringToBinaryA(
+               payload.c_str(),
+               payload.size(),
+               CRYPT_STRING_BASE64,
+               payloadDecoded.data(),
+               &len,
+               nullptr,
+               nullptr
+            );
+            if (!ret)
+               ERROR_SET(err, nomem);
+
+            payload.resize(0);
+
+            onSection(currentItem, payloadDecoded.data(), len, err);
+            ERROR_CHECK(err);
+            currentItem.resize(0);
+         }
+         else
+         {
+            ERROR_SET(err, unknown, "Malformed line");
+         }
+      }
+      else if (currentItem.size())
+      {
+         try
+         {
+            payload += line;
+         }
+         catch (std::bad_alloc)
+         {
+            ERROR_SET(err, nomem);
+         }
+      }
+   }
+   ERROR_CHECK(err);
+exit:;
+}
+
+void
+pollster::CreateCertificate(
+   common::Stream *stream,
+   Certificate **output,
+   error *err
+)
+{
+   common::Pointer<Win32Cert> r;
+   Win32Store store;
+   const DWORD encoding = X509_ASN_ENCODING | PKCS_7_ASN_ENCODING;
+
+   store.store = CertOpenStore(CERT_STORE_PROV_MEMORY, encoding, 0, 0, nullptr);
+   if (!store.store)
+      ERROR_SET(err, win32, GetLastError());
+
+   common::New(r, err);
+   ERROR_CHECK(err);
+
+   ParsePemFile(
+      stream,
+      [&] (const std::string &label, const void *payload, DWORD len, error *err) -> void
+      {
+         static const char certLabel[] = "CERTIFICATE";
+         static const char rsaKeyLabel[] = "RSA PRIVATE KEY";
+         static const char pkcs8Label[] = "PRIVATE KEY";
+
+         HCRYPTPROV prov = 0;
+         HCRYPTKEY hkey = 0;
+         PCRYPT_PRIVATE_KEY_INFO privateKeyInfo = nullptr;
+         PVOID keyData = nullptr;
+         DWORD keyLen = 0;
+
+         if (label.size() == sizeof(certLabel)-1 && label == certLabel)
+         {
+            auto ret = CertAddEncodedCertificateToStore(
+               store.store,
+               encoding,
+               (const BYTE*)payload,
+               len,
+               CERT_STORE_ADD_USE_EXISTING,
+               r->ctx ? nullptr : &r->ctx
+            );
+            if (!ret)
+               ERROR_SET(err, win32, GetLastError());
+         }
+         else if (label.size() == sizeof(rsaKeyLabel)-1 && label == rsaKeyLabel)
+         {
+         rsaKey:
+            auto ret = CryptDecodeObjectEx(
+               encoding,
+               PKCS_RSA_PRIVATE_KEY,
+               (const BYTE*)payload,
+               len,
+               CRYPT_DECODE_ALLOC_FLAG,
+               nullptr,
+               &keyData,
+               &keyLen
+            );
+            if (!ret)
+               ERROR_SET(err, win32, GetLastError());
+         }
+         else if (label.size() == sizeof(pkcs8Label)-1 && label == pkcs8Label)
+         {
+            DWORD privateKeyInfoLen = 0;
+            auto ret = CryptDecodeObjectEx(
+               X509_ASN_ENCODING,
+               PKCS_PRIVATE_KEY_INFO,
+               (const BYTE*)payload,
+               len,
+               CRYPT_DECODE_ALLOC_FLAG,
+               nullptr,
+               &privateKeyInfo,
+               &privateKeyInfoLen
+            );
+            if (!ret)
+               ERROR_SET(err, win32, GetLastError());
+
+            static const char rsaOid[] = szOID_RSA;
+            if (!strncmp(privateKeyInfo->Algorithm.pszObjId, rsaOid, sizeof(rsaOid)-1))
+            {
+               payload = privateKeyInfo->PrivateKey.pbData;
+               len = privateKeyInfo->PrivateKey.cbData;
+               goto rsaKey;
+            }
+            else
+            {
+               // TODO: decode X509_ECC_PRIVATE_KEY into CRYPT_ECC_PRIVATE_KEY_INFO struct.
+               // this will ultimately require some CNG work.
+               //
+               ERROR_SET(err, unknown, "Presumed ECC cert?  Not supported at present.");
+            }
+         }
+         else
+         {
+            ERROR_SET(err, unknown, "Unrecognized label");
+         }
+
+         if (keyData)
+         {
+            WCHAR token[256] = L"libpollster:";
+            PWSTR suffix = token + wcslen(token);
+            static WCHAR provName[] = MS_STRONG_PROV_W;
+            auto provType = PROV_RSA_FULL;
+            static LONG ctr = 0;
+
+            _snwprintf(
+               suffix,
+               ARRAY_SIZE(token) - (suffix-token),
+               L"%d,%d",
+               GetCurrentProcessId(),
+               InterlockedIncrement(&ctr)
+            );
+
+            CryptAcquireContext(&prov, token, provName, provType, CRYPT_DELETEKEYSET);
+            if (!CryptAcquireContext(&prov, token, provName, provType, CRYPT_NEWKEYSET))
+               ERROR_SET(err, win32, GetLastError());
+            if (!CryptImportKey(prov, (const BYTE*)keyData, keyLen, 0, CRYPT_EXPORTABLE, &hkey))
+               ERROR_SET(err, win32, GetLastError());
+            if (!CertSetCertificateContextProperty(r->ctx, CERT_KEY_PROV_HANDLE_PROP_ID, 0, &prov))
+               ERROR_SET(err, win32, GetLastError());
+
+            CRYPT_KEY_PROV_INFO provInfo = {0};
+
+            provInfo.pwszContainerName = token;
+            provInfo.pwszProvName = provName;
+            provInfo.dwProvType = provType;
+            provInfo.dwKeySpec = AT_KEYEXCHANGE;
+
+            if (!CertSetCertificateContextProperty(r->ctx, CERT_KEY_PROV_INFO_PROP_ID, 0, &provInfo))
+               ERROR_SET(err, win32, GetLastError());
+         }
+
+      exit:
+         if (privateKeyInfo)
+            LocalFree(privateKeyInfo);
+         if (keyData)
+            LocalFree(keyData);
+         if (hkey)
+            CryptDestroyKey(hkey);
+         if (prov)
+            CryptReleaseContext(prov, 0);
+      },
+      err
+   );
+   ERROR_CHECK(err);
+
+exit:
+   if (ERROR_FAILED(err))
+      r = nullptr;
+   *output = r.Detach();
 }

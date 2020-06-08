@@ -15,6 +15,7 @@
 #include <pollster/ssl.h>
 
 #include <common/c++/lock.h>
+#include <common/c++/new.h>
 #include <common/misc.h>
 
 #include <sys/stat.h>
@@ -156,6 +157,13 @@ struct SecureTransportFilter : public pollster::Filter
             return errSSLWouldBlock;
          }
       );
+
+      if (args.Certificate.Get())
+      {
+         status = SSLSetCertificate(ssl, (CFArrayRef)args.Certificate->GetNativeObject());
+         if (status)
+            ERROR_SET(err, osstatus, status);
+      }
 
       if (args.HostName)
       {
@@ -390,6 +398,215 @@ exit:
 void
 pollster::InitSslLibrary(error *err)
 {
+}
+
+namespace {
+
+struct SecItemCert : public pollster::Certificate
+{
+   CFArrayRef ref;
+
+   SecItemCert() : ref(nullptr) {}
+
+   ~SecItemCert()
+   {
+      if (ref)
+         CFRelease(ref);
+   }
+
+   void *
+   GetNativeObject() { return (void*)ref; }
+};
+
+} // end namespace
+
+static
+CFStringRef
+WrapStringLiteral(
+   const char *str,
+   error *err
+)
+{
+   auto r = CFStringCreateWithBytesNoCopy(
+      nullptr,
+      (const UInt8*)str,
+      strlen(str),
+      kCFStringEncodingUTF8,
+      false,
+      kCFAllocatorNull
+   );
+   if (!r)
+      error_set_nomem(err);
+   return r;
+}
+
+static
+CFDataRef
+ReadIntoData(common::Stream *stream, error *err)
+{
+   char buf[4096];
+   CFMutableDataRef data = nullptr;
+   int64_t length = 0;
+
+   length = stream->GetSize(err);
+   ERROR_CHECK(err);
+   length -= stream->GetPosition(err);
+   ERROR_CHECK(err);
+
+   if (length > LONG_MAX)
+      ERROR_SET(err, unknown, "Length too long for CFData!");
+
+   data = CFDataCreateMutable(nullptr, length);
+   if (!data)
+      ERROR_SET(err, nomem);
+
+   for (;;)
+   {
+      auto r = stream->Read(buf, sizeof(buf), err);
+      ERROR_CHECK(err);
+      if (r <= 0)
+         break;
+
+      CFDataAppendBytes(data, (const UInt8*)buf, r);
+   }
+exit:
+   if (ERROR_FAILED(err) && data)
+   {
+      CFRelease(data);
+      data = nullptr;
+   }
+   return data;
+}
+
+extern "C" {
+SecIdentityRef
+SecIdentityCreate(
+   CFAllocatorRef allocator,
+   SecCertificateRef certificate,
+   SecKeyRef privateKey
+);
+}
+
+void
+pollster::CreateCertificate(
+   common::Stream *stream,
+   Certificate **output,
+   error *err
+)
+{
+   common::Pointer<SecItemCert> r;
+   OSStatus status = 0;
+   CFDataRef data = nullptr;
+   CFStringRef extension = nullptr;
+   SecExternalFormat inputFormat = kSecFormatPEMSequence;
+   SecExternalItemType itemType = kSecItemTypeAggregate;
+   SecItemImportExportKeyParameters keyParams = {0};
+   CFIndex nItems = 0;
+   const void *firstItem = nullptr;
+   CFTypeID typeId;
+   SecIdentityRef identity = nullptr;
+
+   common::New(r, err);
+   ERROR_CHECK(err);
+
+   data = ReadIntoData(stream, err);
+   ERROR_CHECK(err);
+
+   extension = WrapStringLiteral(".pem", err);
+   ERROR_CHECK(err);
+
+   status = SecItemImport(
+      data,
+      extension,
+      &inputFormat,
+      &itemType,
+      0,
+      &keyParams,
+      nullptr,
+      &r->ref
+   );
+   if (status)
+      ERROR_SET(err, osstatus, status);
+
+   nItems = CFArrayGetCount(r->ref);
+   if (!nItems)
+      ERROR_SET(err, unknown, "Empty list");
+
+   firstItem = CFArrayGetValueAtIndex(r->ref, 0);
+   typeId = CFGetTypeID(firstItem);
+   if (typeId != SecIdentityGetTypeID())
+   {
+      SecKeyRef key = nullptr;
+      std::vector<const void *> newArr;
+
+      if (typeId != SecCertificateGetTypeID())
+         ERROR_SET(err, unknown, "Expected certificate as first member");
+
+      try
+      {
+         newArr.push_back(nullptr);
+      }
+      catch (std::bad_alloc)
+      {
+         ERROR_SET(err, nomem);
+      }
+
+      for (CFIndex i=1; i<nItems; ++i)
+      {
+         auto p = CFArrayGetValueAtIndex(r->ref, i);
+         if (CFGetTypeID(p) == SecKeyGetTypeID())
+         {
+            if (key)
+               ERROR_SET(err, unknown, "Unexpected: multiple private keys");
+            key = (SecKeyRef)p;
+            continue;
+         }
+
+         try
+         {
+            newArr.push_back(p);
+         }
+         catch (std::bad_alloc)
+         {
+            ERROR_SET(err, nomem);
+         }
+      }
+
+      if (!key)
+         ERROR_SET(err, unknown, "Cannot find key");
+
+      identity = SecIdentityCreate(
+         nullptr,
+         (SecCertificateRef)firstItem,
+         key
+      );
+      if (!identity)
+         ERROR_SET(err, unknown, "Cannot create identity");
+      newArr[0] = identity;
+
+      auto newCfArr = CFArrayCreate(
+         nullptr,
+         newArr.data(),
+         newArr.size(),
+         &kCFTypeArrayCallBacks
+      );
+      if (!newCfArr)
+         ERROR_SET(err, nomem);
+
+      CFRelease(r->ref);
+      r->ref = newCfArr;
+   }
+
+exit:
+   if (data)
+      CFRelease(data);
+   if (extension)
+      CFRelease(extension);
+   if (identity)
+      CFRelease(identity);
+   if (ERROR_FAILED(err))
+      r = nullptr;
+   *output = r.Detach();
 }
 
 namespace {

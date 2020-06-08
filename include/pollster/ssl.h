@@ -13,18 +13,22 @@
 #include <memory>
 
 #include <pollster/filter.h>
+#include <common/c++/stream.h>
 
 namespace pollster
 {
 
-//
-// TODO: needs more parameters
-// [client cert, server keys, hostname]
-//
+struct Certificate : public common::RefCountable
+{
+   virtual void *
+   GetNativeObject() = 0;
+};
+
 struct SslArgs
 {
    bool ServerMode;
    const char *HostName;
+   common::Pointer<Certificate> Certificate;
 
    SslArgs() :
       ServerMode(false),
@@ -40,6 +44,13 @@ struct SslArgs
 
 void
 InitSslLibrary(error *err);
+
+void
+CreateCertificate(
+   common::Stream *stream,
+   Certificate **output,
+   error *err
+);
 
 void
 CreateSslFilter(
