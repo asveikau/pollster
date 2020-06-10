@@ -45,6 +45,33 @@ error_set_openssl(error *err, int code)
    error_clear(err);
    memcpy(&err->source, "ossl", MIN(sizeof(err->source), 4));
    err->code = code;
+
+   if (code == SSL_ERROR_SSL)
+   {
+      char buf[4096];
+      struct remaining
+      {
+         char *p;
+         size_t n;
+      };
+      remaining space = {buf, sizeof(buf)-1};
+      ERR_print_errors_cb(
+         [] (const char *str, size_t n, void *ctx) -> int
+         {
+            auto space = (remaining*)ctx;
+            auto m = MIN(space->n, n);
+            memcpy(space->p, str, m+1);
+            space->p += m;
+            space->n -= m;
+            return !space->n;
+         },
+         &space
+      );
+      err->context = strdup(buf);
+      if (err->context)
+         err->free_fn = [] (void *p) -> void { free(p); };
+   };
+
    err->get_string = [] (error *err) -> const char *
    {
       if (!err->context)
