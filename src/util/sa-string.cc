@@ -60,6 +60,22 @@ pollster::sockaddr_to_string(struct sockaddr *sa, char *buf, socklen_t len)
    DWORD len2 = MIN(((DWORD)~0UL), len);
    if (WSAAddressToStringA(sa, socklen(sa), nullptr, buf, &len2))
       return NULL;
+   // Strip port, as Unix doesn't include it.
+   char *p;
+   switch (sa->sa_family)
+   {
+   case AF_INET:
+      if ((p = strchr(buf, ':')))
+         *p = 0;
+      break;
+   case AF_INET6:
+      if (buf[0] == '[' && (p=strchr(buf+1, ']')))
+      {
+         *p = 0;
+         memmove(buf, buf+1, p-buf);
+      }
+      break;
+   }
    return buf;
 #else
    void *p = NULL;
