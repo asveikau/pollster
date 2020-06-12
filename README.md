@@ -14,9 +14,11 @@ A portable library for async socket I/O and some helpful event loop features.
 * Atop this are some "simple" APIs for convenient asynchronous socket programming,
   in [`sockapi.h`][2].
 
+* TLS/SSL support for both clients and servers can be added via [`ssl.h`][3].
+
 ## Requirements
 
-Building happens via [the makefiles submodule][3].
+Building happens via [the makefiles submodule][4].
 
     $ git submodule update --init
     $ make                             # or "gmake" on some platforms, like BSD
@@ -40,7 +42,14 @@ typically tested with VS2015 with Windows SDK 10586.
 There is also a generic poll(2) based backend, if none of the more platform
 specific methods are available. 
 
+TLS support use:
+
+* Windows: SChannel
+* macOS: SecureTransport
+* OpenSSL/LibreSSL etc., tested regularly on FreeBSD, OpenBSD, Linux.
+
 [1]: https://github.com/asveikau/pollster/tree/master/include/pollster/pollster.h
 [2]: https://github.com/asveikau/pollster/tree/master/include/pollster/sockapi.h
-[3]: https://github.com/asveikau/makefiles
+[3]: https://github.com/asveikau/pollster/tree/master/include/pollster/ssl.h
+[4]: https://github.com/asveikau/makefiles
 
