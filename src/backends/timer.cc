@@ -118,6 +118,7 @@ pollster::timer::end_poll(error *err)
    auto start_time = last_time;
    last_time = get_monotonic_time_millis();
    uint64_t ellapsed = last_time - start_time;
+   last_time = 0;
 
    auto prev = &head;
 
