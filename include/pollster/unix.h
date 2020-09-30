@@ -62,6 +62,9 @@ struct unix_backend : public waiter
       event **ev,
       error *err
    );
+
+   void *
+   get_interface(extended_interface ifspec, error *err);
 };
 
 } // end namespace

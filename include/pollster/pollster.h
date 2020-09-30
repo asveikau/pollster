@@ -16,6 +16,10 @@
 #include <functional>
 #include <memory>
 
+#if !defined(_WINDOWS)
+#include <signal.h>
+#endif
+
 namespace pollster
 {
 
@@ -123,9 +127,17 @@ struct socket_event : virtual public event
    virtual void set_needs_write(bool b, error *err) = 0;
 };
 
+// Used to specify an API for extended_interface.
+//
+enum extended_interface
+{
+   Signal,
+   SigEvent,
+};
+
 // Pure virtual base class for poll backend.
 //
-struct waiter : public common::RefCountable
+struct waiter : public virtual common::RefCountable
 {
    // Add a socket to the fd set.
    // @write:      Set to true if we currently want to poll for write availability.
@@ -199,6 +211,47 @@ struct waiter : public common::RefCountable
    //
    virtual void
    exec(error *err) = 0;
+
+   // Attempt to get a more platform-specific interface.
+   //
+   virtual void *
+   get_interface(extended_interface ifspec, error *err)
+   {
+      return nullptr;
+   }
+};
+
+struct signal_extif : public virtual common::RefCountable
+{
+   virtual void
+   add_signal(
+      int sig,
+      const std::function<void(event *, error *)> &initialize,
+      event **ev,
+      error *err
+   ) = 0;
+};
+
+struct sigev_extif : public virtual common::RefCountable
+{
+   virtual void
+   add_sigev(
+      struct sigevent *sigev,
+      const std::function<void(event *, error *)> &initialize,
+      event **ev,
+      error *err
+   ) = 0;
+
+   virtual void
+   remove_sigev(struct sigevent *sigev);
+
+   void
+   wrap_sigev(
+      struct sigevent *sigev,
+      const std::function<void(error *err)> &on_success,
+      const std::function<void(error *err)> &on_error,
+      error *err
+   );
 };
 
 // Create a backend object.

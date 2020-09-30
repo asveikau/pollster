@@ -10,10 +10,14 @@
 #include <fcntl.h>
 
 #include <common/c++/new.h>
+#include <common/c++/lock.h>
+#include <common/lazy.h>
 
 #include <pollster/unix.h>
 #include <pthread.h>
 #include <signal.h>
+
+#include <map>
 
 #if defined(__linux__) && !defined(USE_EVENTFD)
 #define USE_EVENTFD 1
@@ -21,6 +25,10 @@
 
 #ifdef USE_EVENTFD
 #include <sys/eventfd.h>
+#endif
+
+#if defined(SIGEV_THREAD) && !defined(__APPLE__)
+#define USE_SIGEV
 #endif
 
 using namespace common;
@@ -434,3 +442,311 @@ pollster::unix_backend::base_add_fd(int fd, bool write_flag, event *object, erro
    }
 }
 
+namespace {
+
+struct signal_pipe
+{
+   common::Pointer<pollster::unix_backend> p;
+   std::shared_ptr<FileHandle> fd[2];
+   common::Pointer<fd_wrapper_base> ev;
+   std::mutex listenerLock;
+   std::map<int, std::vector<std::function<void(error*)>>> listeners;
+
+   void
+   initialize(error *err)
+   {
+      static lazy_init_state st;
+      lazy_init(
+         &st,
+         [] (void *pv, error *err) -> void
+         {
+            auto p = (signal_pipe*)pv;
+            p->initialize_inner(err);
+         },
+         this,
+         err
+      );
+   }
+
+   void
+   initialize_inner(error *err)
+   {
+      fd_wrapper_base *evp;
+
+      int fdInt[2];
+      if (pipe(fdInt))
+         ERROR_SET(err, errno, errno);
+
+      try
+      {
+         fd[0] = std::make_shared<FileHandle>();
+         fd[1] = std::make_shared<FileHandle>();
+      }
+      catch (std::bad_alloc)
+      {
+         ERROR_SET(err, nomem);
+      }
+
+      *fd[0] = fdInt[0];
+      fdInt[0] = -1;
+      *fd[1] = fdInt[1];
+      fdInt[1] = -1;
+
+      if (fcntl(fd[0]->Get(), F_SETFL, O_NONBLOCK, 1))
+         ERROR_SET(err, errno, errno);
+
+      New(ev, err);
+      ERROR_CHECK(err);
+      ev->p = p.Get();
+      ev->fd = fd[0];
+
+      evp = ev.Get();
+      ev->on_signal = [this, evp] (error *err) -> void
+      {
+         int sig;
+         while (read(evp->fd->Get(), &sig, sizeof(sig)) == sizeof(sig))
+         {
+            common::locker l;
+            l.acquire(listenerLock);
+            auto ls = listeners.find(sig);
+            if (ls != listeners.end())
+            {
+               for (auto &p : ls->second)
+               {
+                  p(err);
+                  ERROR_CHECK(err);
+               }
+            }
+         }
+      exit:;
+      };
+
+      p->add_fd(fd[0]->Get(), false, ev.Get(), err);
+      ERROR_CHECK(err);
+   exit:
+      if (fdInt[0] > 0)
+         close(fdInt[0]);
+      if (fdInt[1] > 0)
+         close(fdInt[1]);
+      if (ERROR_FAILED(err))
+         cleanup();
+   }
+
+   void
+   cleanup()
+   {
+      if (ev.Get() && p.Get())
+      {
+         error err;
+         p->remove_fd(fd[0]->Get(), ev.Get(), &err);
+      }
+      if (fd[0].get())
+         fd[0]->Reset();
+      if (fd[1].get())
+         fd[1]->Reset();
+      ev = nullptr;
+   }
+
+   ~signal_pipe()
+   {
+      cleanup();
+   }
+};
+
+static signal_pipe master_pipe;
+
+struct signal_event_wrapper : public pollster::event
+{
+   common::Pointer<pollster::unix_backend> p;
+
+   int sig;
+   struct sigaction oldsig;
+
+   signal_event_wrapper()
+   {
+      sig = 0;
+   }
+
+   ~signal_event_wrapper()
+   {
+      if (sig)
+         sigaction(sig, &oldsig, NULL);
+   }
+
+   void
+   register_(int sig, error *err)
+   {
+      struct sigaction a = {0};
+      common::locker l;
+
+      if (p.Get() && !master_pipe.p.Get())
+         master_pipe.p = p;
+
+      master_pipe.initialize(err);
+      ERROR_CHECK(err);
+
+      this->sig = sig;
+
+      l.acquire(master_pipe.listenerLock);
+      try
+      {
+         common::Pointer<signal_event_wrapper> rc = this;
+         auto forSig = master_pipe.listeners.find(sig);
+         if (forSig == master_pipe.listeners.end())
+         {
+            master_pipe.listeners[sig] = std::vector<std::function<void(error*)>>();
+            forSig = master_pipe.listeners.find(sig);
+         }
+         forSig->second.push_back(
+            [rc] (error *err) -> void
+            {
+               rc->p->thread_helper.enqueue_work(
+                  [rc] (error *err) -> void
+                  {
+                     rc->signal_from_backend(err);
+                  },
+                  err
+               );
+               if (ERROR_FAILED(err) && rc->on_error)
+               {
+                  rc->on_error(err);
+                  error_clear(err);
+               }
+            }
+         );
+         l.release();
+      }
+      catch (std::bad_alloc)
+      {
+         ERROR_SET(err, nomem);
+      }
+
+      a.sa_handler = [] (int sig) -> void
+      {
+         write(master_pipe.fd[1]->Get(), &sig, sizeof(sig));
+      };
+      sigaction(sig, &a, &oldsig);
+   exit:;
+   }
+
+   void
+   remove(error *err)
+   {
+   }
+};
+
+struct signal_wrapper : public pollster::signal_extif
+{
+   common::Pointer<pollster::unix_backend> p;
+
+   void
+   add_signal(
+      int sig,
+      const std::function<void(pollster::event *, error *)> &initialize,
+      pollster::event **ev,
+      error *err
+   )
+   {
+      common::Pointer<signal_event_wrapper> evp;
+      common::New(evp, err);
+      ERROR_CHECK(err);
+      evp->p = p;
+
+      initialize(evp.Get(), err);
+      ERROR_CHECK(err);
+
+      evp->register_(sig, err);
+      ERROR_CHECK(err);
+
+      *ev = evp.Detach();
+   exit:;
+   }
+};
+
+#if defined(USE_SIGEV)
+
+struct sigev_event_wrapper : public pollster::event
+{
+   common::Pointer<pollster::unix_backend> p;
+
+   void
+   remove(error *err)
+   {
+   }
+};
+
+struct sigev_wrapper : public pollster::sigev_extif
+{
+   common::Pointer<pollster::unix_backend> p;
+
+   void
+   add_sigev(
+      struct ::sigevent *sigev,
+      const std::function<void(pollster::event *, error *)> &initialize,
+      pollster::event **ev,
+      error *err
+   )
+   {
+      common::Pointer<sigev_event_wrapper> evp;
+      common::New(evp, err);
+      ERROR_CHECK(err);
+      evp->p = p;
+      initialize(evp.Get(), err);
+      ERROR_CHECK(err);
+      memset(sigev, 0, sizeof(*sigev));
+      sigev->sigev_notify = SIGEV_THREAD;
+      sigev->sigev_notify_function = [] (union sigval sv) -> void
+      {
+         error err;
+         common::Pointer<sigev_event_wrapper> p = (sigev_event_wrapper*)sv.sival_ptr;
+         p->p->thread_helper.enqueue_work(
+            [p] (error *err) -> void
+            {
+               p->signal_from_backend(err);
+            },
+            &err
+         );
+         if (ERROR_FAILED(&err) && p->on_error)
+            p->on_error(&err);
+      };
+      sigev->sigev_value.sival_ptr = evp.Get();
+      evp->AddRef();
+      *ev = evp.Detach();
+   exit:;
+   }
+};
+
+#endif
+
+} // end namespace
+
+void *
+pollster::unix_backend::get_interface(extended_interface ifspec, error *err)
+{
+
+   switch (ifspec)
+   {
+   case pollster::Signal:
+      {
+         common::Pointer<signal_wrapper> wrapper;
+         common::New(wrapper, err);
+         ERROR_CHECK(err);
+         wrapper->p = this;
+         return wrapper.Detach();
+      }
+      break;
+#if defined(USE_SIGEV)
+   case pollster::SigEvent:
+      {
+         common::Pointer<sigev_wrapper> wrapper;
+         common::New(wrapper, err);
+         ERROR_CHECK(err);
+         wrapper->p = this;
+         return wrapper.Detach();
+      }
+      break;
+#endif
+   }
+exit:;
+   return waiter::get_interface(ifspec, err);
+}

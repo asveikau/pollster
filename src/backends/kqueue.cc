@@ -27,9 +27,18 @@
 #define UDATA_OBJ_CAST(X) (X)
 #endif
 
+#if defined(SIGEV_KEVENT)
+#define USE_SIGEV
+#endif
+
 namespace {
 
-struct kqueue_backend : public pollster::unix_backend
+struct kqueue_backend :
+   public pollster::unix_backend
+   , public pollster::signal_extif
+#if defined(USE_SIGEV)
+   , public pollster::sigev_extif
+#endif
 {
    common::FileHandle kq;
    std::vector<struct kevent> changelist;
@@ -261,6 +270,193 @@ struct kqueue_backend : public pollster::unix_backend
 
       obj->signal_from_backend(err);
    }
+
+   virtual void *
+   get_interface(pollster::extended_interface ifspec, error *err)
+   {
+      switch (ifspec)
+      {
+      case pollster::Signal:
+         AddRef();
+         return static_cast<pollster::signal_extif*>(this);
+#if defined(USE_SIGEV)
+      case pollster::SigEvent:
+         AddRef();
+         return static_cast<pollster::sigev_extif*>(this);
+#endif
+      default:
+         break;
+      }
+      return unix_backend::get_interface(ifspec, err);
+   }
+
+   struct event_base : public pollster::event
+   {
+      kqueue_backend *p;   
+
+   protected:
+      template <typename RemoveFn, typename CompleteFn>
+      void
+      remove_base(
+         RemoveFn removeFn,
+         CompleteFn completeFn,
+         error *err
+      )
+      {
+         auto q = p;
+         p = nullptr;
+         if (q)
+         {
+            removeFn(q, err);
+            ERROR_CHECK(err);
+
+            q->remove_pending(this);
+
+            try
+            {
+               q->toDelete.push_back(this);
+            }
+            catch (std::bad_alloc)
+            {
+               ERROR_SET(err, nomem);
+            }
+
+            q->refCounts.erase((uintptr_t)this);
+
+            completeFn(q, err);
+            ERROR_CHECK(err);
+         }
+      exit:;
+      }
+   };
+
+   struct sig_event : public event_base
+   {
+      int sig;
+
+      void
+      remove(error *err)
+      {
+         remove_base(
+            [this] (kqueue_backend *q, error *err) -> void
+            {
+               auto kevent = q->allocate(this, err);
+               ERROR_CHECK(err);
+
+               EV_SET(kevent, sig, EVFILT_SIGNAL, EV_DELETE, 0, 0, UDATA_OBJ_CAST(this));
+            exit:;
+            },
+            [this] (kqueue_backend *q, error *err) -> void
+            {
+               signal(sig, SIG_DFL);
+            },
+            err
+         );
+      }
+   };
+
+   void
+   add_signal(
+      int sig,
+      const std::function<void(pollster::event *, error *)> &initialize,
+      pollster::event **ev,
+      error *err
+   )
+   {
+      struct kevent *kevent = nullptr;
+      common::Pointer<sig_event> evp;
+      bool ref = false;
+
+      common::New(evp, err);
+      ERROR_CHECK(err);
+
+      evp->p = this;
+      evp->sig = sig;
+
+      try
+      {
+         refCounts[(intptr_t)evp.Get()] = common::Pointer<pollster::event>(evp.Get());
+      }
+      catch (std::bad_alloc)
+      {
+         ERROR_SET(err, nomem);
+      }
+
+      ref = true;
+
+      initialize(evp.Get(), err);
+      ERROR_CHECK(err);
+
+      kevent = allocate(evp.Get(), err);
+      ERROR_CHECK(err);
+
+      EV_SET(kevent, sig, EVFILT_SIGNAL, EV_ADD|EV_ENABLE, 0, 0, UDATA_OBJ_CAST(evp.Get()));
+      *ev = evp.Detach();
+
+      signal(sig, SIG_IGN);
+   exit:
+      if (ERROR_FAILED(err) && ref)
+         refCounts.erase((uintptr_t)evp.Get());
+   }
+
+#if defined(USE_SIGEV)
+
+   struct sigev_event : public event_base
+   {
+      void
+      remove(error *err)
+      {
+         remove_base(
+            [] (kqueue_backend *q, error *err) -> void {},
+            [] (kqueue_backend *q, error *err) -> void {},
+            err
+         );
+      }
+   };
+
+   void
+   add_sigev(
+      struct ::sigevent *sigev,
+      const std::function<void(pollster::event *, error *)> &initialize,
+      pollster::event **ev,
+      error *err
+   )
+   {
+      common::Pointer<sigev_event> evp;
+      bool ref = false;
+
+      common::New(evp, err);
+      ERROR_CHECK(err);
+
+      evp->p = this;
+
+      try
+      {
+         refCounts[(intptr_t)evp.Get()] = common::Pointer<pollster::event>(evp.Get());
+      }
+      catch (std::bad_alloc)
+      {
+         ERROR_SET(err, nomem);
+      }
+
+      ref = true;
+
+      initialize(evp.Get(), err);
+      ERROR_CHECK(err);
+
+      memset(sigev, 0, sizeof(*sigev));
+
+      sigev->sigev_notify = SIGEV_KEVENT;
+      sigev->sigev_notify_kqueue = kq.Get();
+      sigev->sigev_value.sival_ptr = evp.Get();
+
+      evp->AddRef();
+      *ev = evp.Detach();
+   exit:
+      if (ERROR_FAILED(err) && ref)
+         refCounts.erase((uintptr_t)evp.Get());
+   }
+#endif
 };
 
 } // end namespace

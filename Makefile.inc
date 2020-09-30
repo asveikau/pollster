@@ -42,7 +42,8 @@ LIBPOLLSTER_CXXFLAGS += -DTEST_LEGACY_UNIX_SOCKET
 endif
 else
 LIBPOLLSTER_SRC += \
-   $(LIBPOLLSTER_ROOT)src/backends/unix.cc
+   $(LIBPOLLSTER_ROOT)src/backends/unix.cc \
+   $(LIBPOLLSTER_ROOT)src/util/sigev.cc
 endif
 
 ifneq (, $(filter $(PLATFORM),freebsd openbsd netbsd darwin))
