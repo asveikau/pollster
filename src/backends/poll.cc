@@ -156,7 +156,12 @@ struct poll_backend : public pollster::unix_backend
 
       n = poll(pollfds.data(), pollfds.size(), timeoutInt); 
       if (n < 0)
-         ERROR_SET(err, errno, errno);
+      {
+         if (errno == EINTR)
+            n = 0;
+         else
+            ERROR_SET(err, errno, errno);
+      }
 
       if (timeoutInt >= 0)
       {

@@ -145,7 +145,12 @@ struct epoll_backend : public pollster::unix_backend
       nevents = epoll_wait(pfd.Get(), events, ARRAY_SIZE(events), timeout);
 
       if (nevents < 0)
-         ERROR_SET(err, errno, errno);
+      {
+         if (errno == EINTR)
+            nevents = 0;
+         else
+            ERROR_SET(err, errno, errno);
+      }
 
       cursor = events - 1;
       last = events + nevents;
