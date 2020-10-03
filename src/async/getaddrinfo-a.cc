@@ -24,6 +24,7 @@ struct State : public common::RefCountable
 {
    struct gaicb cb;
    struct addrinfo hint;
+   struct sigevent sev;
    void *onHeap;
    std::function<void(const std::shared_ptr<struct addrinfo> &, error *err)> onResult;
    std::function<void(error *)> onError;
@@ -57,11 +58,12 @@ pollster::GetAddrInfoAsync(
 {
    error err;
    common::Pointer<State> state;
+   common::Pointer<pollster::waiter> queue;
+   common::Pointer<pollster::sigev_extif> sigevExt;
    gaicb *cb = nullptr;
    size_t hostlen = strlen(host);
    size_t svclen = strlen(service); 
    size_t n = 0;
-   struct sigevent sev = {0};
    int r = 0;
 
    if (size_add(hostlen, svclen, &n) ||
@@ -100,44 +102,57 @@ pollster::GetAddrInfoAsync(
    state->cb.ar_service = service;
    state->cb.ar_request = hint;
 
-   sev.sigev_notify = SIGEV_THREAD;
-   sev.sigev_value.sival_ptr = state.Get();
-   sev.sigev_notify_function = [] (union sigval val) -> void
-   {
-      State *state = (State*)val.sival_ptr;
-      std::shared_ptr<struct addrinfo> info;
-      error err;
-      int r = 0;
+   pollster::get_common_queue(queue.GetAddressOf(), &err);
+   ERROR_CHECK(&err);
 
-      r = gai_error(&state->cb);
-      if (r)
-         ERROR_SET(&err, gai, r);
+   *sigevExt.GetAddressOf() = (pollster::sigev_extif*)queue->get_interface(pollster::SigEvent, &err); 
+   ERROR_CHECK(&err);
+   if (!sigevExt.Get())
+      ERROR_SET(&err, unknown, "No sigev support");
 
-      try
+   sigevExt->wrap_sigev(
+      &state->sev,
+      [state] (error *err) -> void
       {
-         info = std::shared_ptr<struct addrinfo>(state->cb.ar_result, freeaddrinfo);
-      }
-      catch (std::bad_alloc)
+         std::shared_ptr<struct addrinfo> info;
+         int r = 0;
+
+         r = gai_error(&state->cb);
+         if (r)
+            ERROR_SET(err, gai, r);
+
+         try
+         {
+            info = std::shared_ptr<struct addrinfo>(state->cb.ar_result, freeaddrinfo);
+         }
+         catch (std::bad_alloc)
+         {
+            ERROR_SET(err, nomem);
+         }
+         state->cb.ar_result = nullptr;
+
+         state->onResult(info, err);
+         ERROR_CHECK(err);
+      exit:
+         if (ERROR_FAILED(err) && state->onError)
+            state->onError(err);
+         error_clear(err);
+      },
+      [state] (error *err) -> void
       {
-         ERROR_SET(&err, nomem);
-      }
-      state->cb.ar_result = nullptr;
-
-      state->onResult(info, &err);
-      ERROR_CHECK(&err);
-
-   exit:
-      if (ERROR_FAILED(&err) && state->onError)
-         state->onError(&err);
-      state->Release();
-   };
+         if (state->onError)
+            state->onError(err);
+      },
+      &err
+   );
+   ERROR_CHECK(&err);
 
    cb = &state->cb;
-   state->AddRef();
-   r = getaddrinfo_a(GAI_NOWAIT, &cb, 1, &sev);
+   r = getaddrinfo_a(GAI_NOWAIT, &cb, 1, &state->sev);
    if (r)
    {
-      state->Release();
+      if (sigevExt.Get())
+         sigevExt->remove_sigev(&state->sev);
       ERROR_SET(&err, gai, r);
    }
 
