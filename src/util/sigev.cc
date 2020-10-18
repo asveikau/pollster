@@ -39,24 +39,20 @@ pollster::sigev_extif::wrap_sigev(
       sigev,
       [&] (pollster::event *ev, error *err) -> void
       {
-         if (on_success)
+         ev->on_signal = [sigev, on_success, rc] (error *err) -> void
          {
-            ev->on_signal = [sigev, on_success, rc] (error *err) -> void
-            {
-               rc->remove_sigev(sigev);
+            rc->remove_sigev(sigev);
 
+            if (on_success)
                on_success(err);
-            };
-         }
-         if (on_error)
+         };
+         ev->on_error = [sigev, on_error, rc] (error *err) -> void
          {
-            ev->on_error = [sigev, on_error, rc] (error *err) -> void
-            {
-               rc->remove_sigev(sigev);
+            rc->remove_sigev(sigev);
 
+            if (on_error)
                on_error(err);
-            };
-         }
+         };
       },
       ev.GetAddressOf(),
       err
