@@ -358,7 +358,7 @@ ReadWrite(
 } // end namespace
 
 void
-pollster::windows::ReadFileAsync(
+pollster::ReadFileAsync(
    pollster::waiter *w,
    const std::shared_ptr<common::FileHandle> &file,
    const uint64_t *offset_opt,
@@ -372,7 +372,7 @@ pollster::windows::ReadFileAsync(
 }
 
 void
-pollster::windows::WriteFileAsync(
+pollster::WriteFileAsync(
    pollster::waiter *w,
    const std::shared_ptr<common::FileHandle> &file,
    const uint64_t *offset_opt,

@@ -17,6 +17,7 @@ LIBPOLLSTER_SRC += \
    $(LIBPOLLSTER_ROOT)src/async/sleep.cc \
    $(LIBPOLLSTER_ROOT)src/async/streamserver.cc \
    $(LIBPOLLSTER_ROOT)src/async/streamsocket.cc \
+   $(LIBPOLLSTER_ROOT)src/async/posix-aio.cc \
    $(LIBPOLLSTER_ROOT)src/backends/backends.cc \
    $(LIBPOLLSTER_ROOT)src/backends/threads.cc \
    $(LIBPOLLSTER_ROOT)src/backends/timer.cc \
@@ -25,6 +26,11 @@ LIBPOLLSTER_SRC += \
    $(LIBPOLLSTER_ROOT)src/util/messagequeue.cc \
    $(LIBPOLLSTER_ROOT)src/util/sa-string.cc \
    $(LIBPOLLSTER_ROOT)src/util/socklen.cc
+
+ifneq (, $(filter $(PLATFORM),linux freebsd netbsd sunos))
+LIBPOLLSTER_CFLAGS += -DHAVE_AIO
+LDFLAGS += -lrt
+endif
 
 ifeq ($(PLATFORM), windows)
 LIBPOLLSTER_SRC += \

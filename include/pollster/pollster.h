@@ -297,6 +297,28 @@ sleep(uint64_t millis, const std::function<void(error *)> &fn, error *err)
    sleep(nullptr, millis, fn, err);
 }
 
+void
+ReadFileAsync(
+   waiter *w,
+   const std::shared_ptr<common::FileHandle> &file,
+   const uint64_t *offset_opt,
+   void *buffer,
+   size_t len,
+   const std::function<void(error *)> &on_error,
+   const std::function<void(size_t, error *)> &on_result
+);
+
+void
+WriteFileAsync(
+   waiter *w,
+   const std::shared_ptr<common::FileHandle> &file,
+   const uint64_t *offset_opt,
+   const void *buffer,
+   size_t len,
+   const std::function<void(error *)> &on_error,
+   const std::function<void(size_t, error *)> &on_result
+);
+
 } // end namespace
 
 #endif

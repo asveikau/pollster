@@ -147,28 +147,6 @@ namespace windows
    FreeOverlapped(OVERLAPPED *);
 
    void
-   ReadFileAsync(
-      waiter *w,
-      const std::shared_ptr<common::FileHandle> &file,
-      const uint64_t *offset_opt,
-      void *buffer,
-      size_t len,
-      const std::function<void(error *)> &on_error,
-      const std::function<void(size_t, error *)> &on_result
-   );
-
-   void
-   WriteFileAsync(
-      waiter *w,
-      const std::shared_ptr<common::FileHandle> &file,
-      const uint64_t *offset_opt,
-      const void *buffer,
-      size_t len,
-      const std::function<void(error *)> &on_error,
-      const std::function<void(size_t, error *)> &on_result
-   );
-
-   void
    CreateLegacyAfUnixServer(
       waiter *w,
       struct sockaddr_un *sun,

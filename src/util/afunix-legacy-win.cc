@@ -398,7 +398,7 @@ AfUnixServerConnected(
       ERROR_SET(err, nomem);
    }
 
-   pollster::windows::WriteFileAsync(
+   pollster::WriteFileAsync(
       w.Get(),
       pipe,
       nullptr,
@@ -663,7 +663,7 @@ pollster::windows::CreateLegacyAfUnixClient(
    if (!mainPipe->Valid())
       ERROR_SET(err, win32, GetLastError());
 
-   pollster::windows::ReadFileAsync(
+   pollster::ReadFileAsync(
       w,
       mainPipe,
       nullptr,
@@ -699,7 +699,7 @@ ReadLoop(
    const std::function<void(error *)> &on_error
 )
 {
-   pollster::windows::ReadFileAsync(
+   pollster::ReadFileAsync(
       w.Get(),
       hClient,
       nullptr,
@@ -790,7 +790,7 @@ pollster::windows::BindLegacyAfUnixClient(
          ERROR_SET(err, nomem);
       }
 
-      pollster::windows::WriteFileAsync(
+      pollster::WriteFileAsync(
          wp.Get(),
          hClient,
          nullptr,
