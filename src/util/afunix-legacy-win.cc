@@ -401,6 +401,7 @@ AfUnixServerConnected(
    pollster::windows::WriteFileAsync(
       w.Get(),
       pipe,
+      nullptr,
       respHeap->data(),
       respHeap->size(),
       [w, pipe, pipeName, on_client] (error *err) -> void
@@ -665,6 +666,7 @@ pollster::windows::CreateLegacyAfUnixClient(
    pollster::windows::ReadFileAsync(
       w,
       mainPipe,
+      nullptr,
       buffer->data(),
       buffer->size(),
       std::function<void(error*)>(),
@@ -700,6 +702,7 @@ ReadLoop(
    pollster::windows::ReadFileAsync(
       w.Get(),
       hClient,
+      nullptr,
       buf->data(),
       buf->size(),
       on_error,
@@ -790,6 +793,7 @@ pollster::windows::BindLegacyAfUnixClient(
       pollster::windows::WriteFileAsync(
          wp.Get(),
          hClient,
+         nullptr,
          vec->data(),
          len,
          on_error,

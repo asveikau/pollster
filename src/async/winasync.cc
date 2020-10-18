@@ -17,6 +17,13 @@ namespace
       std::function<void (DWORD, OVERLAPPED*, error *)> on_result;
       common::Pointer<pollster::auto_reset_signal> ev;
 
+      OverlappedSubclass()
+      {
+         Internal = InternalHigh = 0;
+         Offset = OffsetHigh = 0;
+         hEvent = nullptr;
+      }
+
       ~OverlappedSubclass()
       {
          if (ev.Get())
@@ -135,6 +142,7 @@ ReadWrite(
    pollster::waiter *w,
    const std::shared_ptr<common::FileHandle> &file,
    T1 op,
+   const uint64_t *offset_opt,
    T2 buffer,
    DWORD len,
    const std::function<void(error *)> &on_error,
@@ -157,6 +165,15 @@ ReadWrite(
       &err
    );
    ERROR_CHECK(&err);
+
+   if (offset_opt)
+   {
+      LARGE_INTEGER off;
+
+      off.QuadPart = *offset_opt;
+      ol->Offset = off.LowPart;
+      ol->OffsetHigh = off.HighPart;
+   }
 
    if (!op(file->Get(), buffer, len, ol, fn))
    {
@@ -195,6 +212,8 @@ struct ReadWriteHelper : public std::enable_shared_from_this<ReadWriteHelper<T1,
    T2 buffer;
    size_t remainingLen;
    size_t totalLen;
+   uint64_t offsetStorage;
+   uint64_t *offset;
 
    std::function<void(error *)> on_error;
    std::function<void(size_t, error *)> on_result;
@@ -203,10 +222,23 @@ struct ReadWriteHelper : public std::enable_shared_from_this<ReadWriteHelper<T1,
       pollster::waiter *w_,
       const std::shared_ptr<common::FileHandle> &file_,
       const T1 & op_,
+      const uint64_t *offset_,
       T2 &buffer_,
       size_t len
    )
-   : w(w_), file(file_), op(op_), buffer(buffer_), remainingLen(len), totalLen(0) {}
+   : w(w_), file(file_), op(op_), buffer(buffer_), remainingLen(len), totalLen(0)
+   {
+      if (offset_)
+      {
+         offsetStorage = *offset_;
+         offset = &offsetStorage;
+      }
+      else
+      {
+         offsetStorage = 0;
+         offset = nullptr;
+      }
+   }
 
    DWORD
    GetCurrentIoSize()
@@ -224,6 +256,7 @@ struct ReadWriteHelper : public std::enable_shared_from_this<ReadWriteHelper<T1,
          w.Get(),
          file,
          op,
+         offset,
          buffer,
          GetCurrentIoSize(),
          [rc] (error *err) -> void
@@ -262,6 +295,7 @@ struct ReadWriteHelper : public std::enable_shared_from_this<ReadWriteHelper<T1,
          totalLen += res;
          remainingLen -= res;
          buffer = (T2*)((char*)buffer + res);
+         offsetStorage += res;
 
          if (remainingLen && !partial)
          {
@@ -279,6 +313,7 @@ ReadWrite(
    pollster::waiter *w,
    const std::shared_ptr<common::FileHandle> &file,
    T1 op,
+   uint64_t *offset_opt,
    T2 buffer,
    size_t len,
    const std::function<void(error *)> &on_error,
@@ -288,7 +323,7 @@ ReadWrite(
    if (len <= ((DWORD)~0U))
    {
       ReadWrite(
-         w, file, op, buffer, (DWORD)len, on_error,
+         w, file, op, offset_opt, buffer, (DWORD)len, on_error,
          [on_result] (DWORD res, error *err) ->  void
          {
             on_result(res, err);
@@ -302,7 +337,7 @@ ReadWrite(
 
       try
       {
-         p = std::make_shared<ReadWriteHelper<T1, T2>>(w, file, op, buffer, len);
+         p = std::make_shared<ReadWriteHelper<T1, T2>>(w, file, op, offset_opt, buffer, len);
          p->on_result = on_result;
          p->on_error = on_error;
       }
@@ -326,24 +361,26 @@ void
 pollster::windows::ReadFileAsync(
    pollster::waiter *w,
    const std::shared_ptr<common::FileHandle> &file,
+   const uint64_t *offset_opt,
    void *buffer,
    size_t len,
    const std::function<void(error *)> &on_error,
    const std::function<void(size_t, error *)> &on_result
 )
 {
-   ReadWrite(w, file, ReadFileEx, buffer, len, on_error, on_result);
+   ReadWrite(w, file, ReadFileEx, offset_opt, buffer, len, on_error, on_result);
 }
 
 void
 pollster::windows::WriteFileAsync(
    pollster::waiter *w,
    const std::shared_ptr<common::FileHandle> &file,
+   const uint64_t *offset_opt,
    const void *buffer,
    size_t len,
    const std::function<void(error *)> &on_error,
    const std::function<void(size_t, error *)> &on_result
 )
 {
-   ReadWrite(w, file, WriteFileEx, buffer, len, on_error, on_result);
+   ReadWrite(w, file, WriteFileEx, offset_opt, buffer, len, on_error, on_result);
 }

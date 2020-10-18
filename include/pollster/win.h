@@ -150,6 +150,7 @@ namespace windows
    ReadFileAsync(
       waiter *w,
       const std::shared_ptr<common::FileHandle> &file,
+      const uint64_t *offset_opt,
       void *buffer,
       size_t len,
       const std::function<void(error *)> &on_error,
@@ -160,6 +161,7 @@ namespace windows
    WriteFileAsync(
       waiter *w,
       const std::shared_ptr<common::FileHandle> &file,
+      const uint64_t *offset_opt,
       const void *buffer,
       size_t len,
       const std::function<void(error *)> &on_error,
