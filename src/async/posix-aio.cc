@@ -90,6 +90,9 @@ exit:
    {
       if (on_error)
          on_error(&err);
+
+      if (sigEvExt.Get())
+         sigEvExt->remove_sigev(&cb->aio_sigevent);
    }
 }
 
