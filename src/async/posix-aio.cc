@@ -65,7 +65,7 @@ PosixAioReadWrite(
 
    sigEvExt->wrap_sigev(
       &cb->aio_sigevent,
-      [cb, on_result] (error *err) -> void
+      [file, cb, on_result] (error *err) -> void
       {
          ssize_t r = aio_return(cb.get());
          if (r < 0)
@@ -74,7 +74,7 @@ PosixAioReadWrite(
       exit:;
       },
       on_error ?
-         [cb, on_error] (error *err) -> void
+         [file, cb, on_error] (error *err) -> void
          {
             on_error(err);
          } : std::function<void(error*)>(),
