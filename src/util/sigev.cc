@@ -39,8 +39,10 @@ pollster::sigev_extif::wrap_sigev(
       sigev,
       [&] (pollster::event *ev, error *err) -> void
       {
-         ev->on_signal = [sigev, on_success, rc] (error *err) -> void
+         ev->on_signal = [ev, sigev, on_success, rc] (error *err) -> void
          {
+            auto rc2 = common::Pointer<event>(ev);
+
             rc->remove_sigev(sigev);
 
             if (on_success)

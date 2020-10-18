@@ -307,19 +307,12 @@ struct kqueue_backend :
          p = nullptr;
          if (q)
          {
+            auto rc = common::Pointer<pollster::event>(this);
+
             removeFn(q, err);
             ERROR_CHECK(err);
 
             q->remove_pending(this);
-
-            try
-            {
-               q->toDelete.push_back(this);
-            }
-            catch (std::bad_alloc)
-            {
-               ERROR_SET(err, nomem);
-            }
 
             q->refCounts.erase((uintptr_t)this);
 
