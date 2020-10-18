@@ -31,7 +31,15 @@ PosixAioReadWrite(
 {
    error err;
    std::shared_ptr<aiocb> cb;
+   common::Pointer<pollster::waiter> wp;
    common::Pointer<pollster::sigev_extif> sigEvExt;
+
+   if (!w)
+   {
+      pollster::get_common_queue(wp.GetAddressOf(), &err);
+      ERROR_CHECK(&err);
+      w = wp.Get();
+   }
 
    *sigEvExt.GetAddressOf() = (pollster::sigev_extif*)w->get_interface(pollster::SigEvent, &err);
    if (!sigEvExt.Get())
