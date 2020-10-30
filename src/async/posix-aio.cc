@@ -158,10 +158,10 @@ PerformOp(
       [exec, fn, on_result, on_error] (error *err) -> void
       {
          fn(
-            [exec, on_result, on_error] (size_t r, error *err) -> void
+            [exec, on_result] (size_t r, error *err) -> void
             {
                exec(
-                  [r, on_result, on_error] (error *err) -> void
+                  [r, on_result] (error *err) -> void
                   {
                      on_result(r, err);
                   },
