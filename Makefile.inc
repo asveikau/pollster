@@ -17,7 +17,6 @@ LIBPOLLSTER_SRC += \
    $(LIBPOLLSTER_ROOT)src/async/sleep.cc \
    $(LIBPOLLSTER_ROOT)src/async/streamserver.cc \
    $(LIBPOLLSTER_ROOT)src/async/streamsocket.cc \
-   $(LIBPOLLSTER_ROOT)src/async/posix-aio.cc \
    $(LIBPOLLSTER_ROOT)src/backends/backends.cc \
    $(LIBPOLLSTER_ROOT)src/backends/threads.cc \
    $(LIBPOLLSTER_ROOT)src/backends/timer.cc \
@@ -48,6 +47,7 @@ LIBPOLLSTER_CXXFLAGS += -DTEST_LEGACY_UNIX_SOCKET
 endif
 else
 LIBPOLLSTER_SRC += \
+   $(LIBPOLLSTER_ROOT)src/async/posix-aio.cc \
    $(LIBPOLLSTER_ROOT)src/backends/unix.cc \
    $(LIBPOLLSTER_ROOT)src/util/sigev.cc
 endif
