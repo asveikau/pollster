@@ -121,6 +121,7 @@ namespace {
 template<typename T>
 void
 PerformOp(
+   pollster::waiter *w,
    T fn,
    const std::function<void(error *)> &on_error,
    const std::function<void(size_t, error *)> &on_result
@@ -128,14 +129,51 @@ PerformOp(
 {
    error err;
 
-   // TODO: on_result should bring back to the originating thread
+   auto rc = common::Pointer<pollster::waiter>(w);
+   if (!rc.Get())
+   {
+      pollster::get_common_queue(rc.GetAddressOf(), &err);
+      if (ERROR_FAILED(&err))
+         return;
+   }
+   auto exec = [rc, on_error] (const std::function<void(error *err)> &fn, error *err) -> void
+   {
+      common::Pointer<pollster::auto_reset_signal> ev;
+
+      rc->add_auto_reset_signal(
+         false,
+         [&] (pollster::auto_reset_signal *ev, error *err) -> void
+         {
+            ev->on_signal = fn;
+            ev->on_error = on_error;
+         },
+         ev.GetAddressOf(),
+         err
+      );
+      if (!ERROR_FAILED(err))
+         ev->signal(err);
+   };
 
    fallbackWorker.Schedule(
-      [fn, on_result, on_error] (error *err) -> void
+      [exec, fn, on_result, on_error] (error *err) -> void
       {
-         fn(on_result, err);
+         fn(
+            [exec, on_result, on_error] (size_t r, error *err) -> void
+            {
+               exec(
+                  [r, on_result, on_error] (error *err) -> void
+                  {
+                     on_result(r, err);
+                  },
+                  err
+               );
+            },
+            err
+         );
          if (ERROR_FAILED(err) && on_error)
+         {
             on_error(err);
+         }
       },
       false,
       &err
@@ -169,6 +207,7 @@ pollster::ReadFileAsync(
    int64_t off = offset_opt ? *offset_opt : -1;
 
    PerformOp(
+      w,
       [file, off, buffer, len] (const std::function<void(size_t, error *)> &on_result, error *err) -> void
       {
          ssize_t r = 0;
@@ -208,6 +247,7 @@ pollster::WriteFileAsync(
    int64_t off = offset_opt ? *offset_opt : -1;
 
    PerformOp(
+      w,
       [file, off, buffer, len] (const std::function<void(size_t, error *)> &on_result, error *err) -> void
       {
          ssize_t r = 0;
