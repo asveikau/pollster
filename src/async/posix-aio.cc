@@ -7,6 +7,7 @@
 */
 
 #include <pollster/pollster.h>
+#include <common/c++/worker.h>
 #include <common/path.h>
 #include <string.h>
 
@@ -113,6 +114,39 @@ ShouldAttemptAio(int fd)
 
 #endif
 
+static common::WorkerThread
+fallbackWorker;
+
+namespace {
+template<typename T>
+void
+PerformOp(
+   T fn,
+   const std::function<void(error *)> &on_error,
+   const std::function<void(size_t, error *)> &on_result
+)
+{
+   error err;
+
+   // TODO: on_result should bring back to the originating thread
+
+   fallbackWorker.Schedule(
+      [fn, on_result, on_error] (error *err) -> void
+      {
+         fn(on_result, err);
+         if (ERROR_FAILED(err) && on_error)
+            on_error(err);
+      },
+      false,
+      &err
+   );
+
+   if (ERROR_FAILED(&err) && on_error)
+      on_error(&err);
+}
+
+} // end namespace
+
 void
 pollster::ReadFileAsync(
    pollster::waiter *w,
@@ -132,12 +166,24 @@ pollster::ReadFileAsync(
    }
 #endif
 
-   if (on_error)
-   {
-      error err;
-      error_set_unknown(&err, "TODO: implement aio fallback");
-      on_error(&err);
-   }
+   int64_t off = offset_opt ? *offset_opt : -1;
+
+   PerformOp(
+      [file, off, buffer, len] (const std::function<void(size_t, error *)> &on_result, error *err) -> void
+      {
+         ssize_t r = 0;
+         if (off >= 0)
+            r = pread(file->Get(), buffer, len, off);
+         else
+            r = read(file->Get(), buffer, len);
+         if (r < 0)
+            error_set_errno(err, errno);
+         else
+            on_result(r, err);
+      },
+      on_error,
+      on_result
+   );
 }
 
 void
@@ -159,10 +205,22 @@ pollster::WriteFileAsync(
    }
 #endif
 
-   if (on_error)
-   {
-      error err;
-      error_set_unknown(&err, "TODO: implement aio fallback");
-      on_error(&err);
-   }
+   int64_t off = offset_opt ? *offset_opt : -1;
+
+   PerformOp(
+      [file, off, buffer, len] (const std::function<void(size_t, error *)> &on_result, error *err) -> void
+      {
+         ssize_t r = 0;
+         if (off >= 0)
+            r = pwrite(file->Get(), buffer, len, off);
+         else
+            r = write(file->Get(), buffer, len);
+         if (r < 0)
+            error_set_errno(err, errno);
+         else
+            on_result(r, err);
+      },
+      on_error,
+      on_result
+   );
 }
