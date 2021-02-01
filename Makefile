@@ -1,7 +1,7 @@
 .PHONY: all all-phony clean depend
 all: all-phony
 
-CFLAGS += -O2 -Wall
+CFLAGS += -g -Wall
 WINDOWS_SUBSYSTEM=console
 include Makefile.inc
 CXXFLAGS += $(CFLAGS)

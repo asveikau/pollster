@@ -67,7 +67,7 @@ pollster::GetAddrInfoAsync(
             {
                infop = std::shared_ptr<addrinfo>(info, freeaddrinfo);
             }
-            catch (std::bad_alloc)
+            catch (const std::bad_alloc&)
             {
                ERROR_SET(&err, nomem);
             }
@@ -85,7 +85,7 @@ pollster::GetAddrInfoAsync(
       );
       ERROR_CHECK(&err);
    }
-   catch (std::bad_alloc)
+   catch (const std::bad_alloc&)
    {
       ERROR_SET(&err, nomem);
    }

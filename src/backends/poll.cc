@@ -66,7 +66,7 @@ struct poll_backend : public pollster::unix_backend
          fd_inserted = true;
          objects.push_back(common::Pointer<pollster::event>(object));
       }
-      catch (std::bad_alloc)
+      catch (const std::bad_alloc&)
       {
          if (fd_inserted)
             pollfds.resize(pollfds.size() - 1);

@@ -235,7 +235,7 @@ struct SecureTransportFilter : public pollster::Filter
             writeCb = std::make_shared<WriteCallback>();
             writeCb->InnerCallback = onComplete;
          }
-         catch (std::bad_alloc)
+         catch (const std::bad_alloc&)
          {
             ERROR_SET(&err, nomem);
          }
@@ -253,7 +253,7 @@ struct SecureTransportFilter : public pollster::Filter
             pendingWrites.push_back(std::make_pair(std::move(tmp), onComplete));
             goto exit;
          }
-         catch (std::bad_alloc)
+         catch (const std::bad_alloc&)
          {
             ERROR_SET(&err, nomem);
          }
@@ -343,7 +343,7 @@ struct SecureTransportFilter : public pollster::Filter
          {
             bufferedReads.insert(bufferedReads.end(), (char*)currentReadBuf, (char*)currentReadBuf+currentReadBufLen);
          }
-         catch (std::bad_alloc)
+         catch (const std::bad_alloc&)
          {
             ERROR_SET(err, nomem);
          }
@@ -378,7 +378,7 @@ pollster::CreateSslFilter(
       f = new SecureTransportFilter();
       res = std::shared_ptr<pollster::Filter>(f);
    }
-   catch (std::bad_alloc)
+   catch (const std::bad_alloc&)
    {
       ERROR_SET(err, nomem);
    }
@@ -546,7 +546,7 @@ pollster::CreateCertificate(
       {
          newArr.push_back(nullptr);
       }
-      catch (std::bad_alloc)
+      catch (const std::bad_alloc&)
       {
          ERROR_SET(err, nomem);
       }
@@ -566,7 +566,7 @@ pollster::CreateCertificate(
          {
             newArr.push_back(p);
          }
-         catch (std::bad_alloc)
+         catch (const std::bad_alloc&)
          {
             ERROR_SET(err, nomem);
          }

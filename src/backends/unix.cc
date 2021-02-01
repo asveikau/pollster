@@ -172,7 +172,7 @@ struct auto_reset_wrapper : public auto_reset_wrapper_base
       {
          fd = std::make_shared<FileHandle>();
       }
-      catch (std::bad_alloc)
+      catch (const std::bad_alloc&)
       {
          ERROR_SET(err, nomem);
       }
@@ -255,7 +255,7 @@ struct eventfd_wrapper : public auto_reset_wrapper_base
       {
          fd = std::make_shared<FileHandle>();
       }
-      catch (std::bad_alloc)
+      catch (const std::bad_alloc&)
       {
          ERROR_SET(err, nomem);
       }
@@ -482,7 +482,7 @@ struct signal_pipe
          fd[0] = std::make_shared<FileHandle>();
          fd[1] = std::make_shared<FileHandle>();
       }
-      catch (std::bad_alloc)
+      catch (const std::bad_alloc&)
       {
          ERROR_SET(err, nomem);
       }
@@ -616,7 +616,7 @@ struct signal_event_wrapper : public pollster::event
          );
          l.release();
       }
-      catch (std::bad_alloc)
+      catch (const std::bad_alloc&)
       {
          ERROR_SET(err, nomem);
       }

@@ -55,7 +55,7 @@ struct dev_poll_backend : public pollster::unix_backend
       {
          objects[fd] = common::Pointer<pollster::event>(object);
       }
-      catch (std::bad_alloc)
+      catch (const std::bad_alloc&)
       {
          ERROR_SET(err, nomem);
       }

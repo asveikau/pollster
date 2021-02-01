@@ -50,7 +50,7 @@ pollster::ConnectAsync(
          exit:;
          };
       }
-      catch (std::bad_alloc)
+      catch (const std::bad_alloc&)
       {
          ERROR_SET(&err, nomem);
       }
@@ -77,7 +77,7 @@ pollster::ConnectAsync(
             {
                fd = std::make_shared<common::SocketHandle>();
             }
-            catch (std::bad_alloc)
+            catch (const std::bad_alloc&)
             {
                ERROR_SET(err, nomem);
             }
@@ -134,7 +134,7 @@ pollster::ConnectAsync(
                      );
                      ERROR_CHECK(err);
                   }
-                  catch (std::bad_alloc)
+                  catch (const std::bad_alloc&)
                   {
                      ERROR_SET(err, nomem);
                   }
@@ -163,7 +163,7 @@ pollster::ConnectAsync(
          onError
       );
    }
-   catch (std::bad_alloc)
+   catch (const std::bad_alloc&)
    {
       ERROR_SET(&err, nomem);
    }

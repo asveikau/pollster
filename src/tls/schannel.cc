@@ -449,7 +449,7 @@ struct SChannelFilter : public pollster::Filter
       {
          tmp.resize(msglen);
       }
-      catch (std::bad_alloc)
+      catch (const std::bad_alloc&)
       {
          ERROR_SET(&err, nomem);
       }
@@ -478,7 +478,7 @@ struct SChannelFilter : public pollster::Filter
             if (onComplete)
                pendingWriteCallbacks.push_back(std::make_pair(pendingWrites.size(), onComplete));
          }
-         catch (std::bad_alloc)
+         catch (const std::bad_alloc&)
          {
             l.release();
             ERROR_SET(&err, nomem);
@@ -511,7 +511,7 @@ struct SChannelFilter : public pollster::Filter
          {
             pendingReads.insert(pendingReads.end(), (char*)buf, (char*)buf+len);
          }
-         catch (std::bad_alloc)
+         catch (const std::bad_alloc&)
          {
             ERROR_SET(err, nomem);
          }
@@ -556,7 +556,7 @@ struct SChannelFilter : public pollster::Filter
          {
             pendingReads.insert(pendingReads.end(), (char*)buf, (char*)buf+len);
          }
-         catch (std::bad_alloc)
+         catch (const std::bad_alloc&)
          {
             ERROR_SET(err, nomem);
          }
@@ -629,7 +629,7 @@ pollster::CreateSslFilter(
       f = new SChannelFilter();
       res = std::shared_ptr<pollster::Filter>(f);
    }
-   catch (std::bad_alloc)
+   catch (const std::bad_alloc&)
    {
       ERROR_SET(err, nomem);
    }
@@ -701,7 +701,7 @@ ParsePemFile(
             {
                currentItem = line;
             }
-            catch (std::bad_alloc)
+            catch (const std::bad_alloc&)
             {
                ERROR_SET(err, nomem);
             }
@@ -718,7 +718,7 @@ ParsePemFile(
             {
                payloadDecoded.resize(payload.size() / 3 * 4);
             }
-            catch (std::bad_alloc)
+            catch (const std::bad_alloc&)
             {
                ERROR_SET(err, nomem);
             }
@@ -756,7 +756,7 @@ ParsePemFile(
          {
             payload += line;
          }
-         catch (std::bad_alloc)
+         catch (const std::bad_alloc&)
          {
             ERROR_SET(err, nomem);
          }

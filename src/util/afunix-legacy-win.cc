@@ -255,7 +255,7 @@ CreateNamedPipe(
       {
          pipe = std::make_shared<common::FileHandle>();
       }
-      catch (std::bad_alloc)
+      catch (const std::bad_alloc&)
       {
          ERROR_SET(err, nomem);
       }
@@ -328,7 +328,7 @@ AfUnixServerConnected(
       childPipe = std::make_shared<common::FileHandle>();
       respHeap = std::make_shared<std::vector<unsigned char>>();
    }
-   catch (std::bad_alloc)
+   catch (const std::bad_alloc&)
    {
       ERROR_SET(err, nomem);
    }
@@ -359,7 +359,7 @@ AfUnixServerConnected(
       {
          nextName = pipeName + L"_" + resp.suffix;
       }
-      catch (std::bad_alloc)
+      catch (const std::bad_alloc&)
       {
          ERROR_SET(err, nomem);
       }
@@ -393,7 +393,7 @@ AfUnixServerConnected(
       auto p = (const unsigned char*)&resp;
       respHeap->insert(respHeap->begin(), p, p+2+resp.len);
    }
-   catch (std::bad_alloc)
+   catch (const std::bad_alloc&)
    {
       ERROR_SET(err, nomem);
    }
@@ -531,7 +531,7 @@ pollster::windows::CreateLegacyAfUnixServer(
    {
       pipeNameObj = pipeName;
    }
-   catch (std::bad_alloc)
+   catch (const std::bad_alloc&)
    {
       ERROR_SET(err, nomem);
    }
@@ -588,7 +588,7 @@ AfUnixClientHello(
       suffix.insert(0, (PCWSTR)buffer, payloadLen/sizeof(WCHAR));
       childPipeName = pipeName + L"_" + suffix;
    }
-   catch (std::bad_alloc)
+   catch (const std::bad_alloc&)
    {
       ERROR_SET(err, nomem);
    }
@@ -646,7 +646,7 @@ pollster::windows::CreateLegacyAfUnixClient(
       buffer = std::make_shared<std::vector<unsigned char>>();
       buffer->resize(4096);
    }
-   catch (std::bad_alloc)
+   catch (const std::bad_alloc&)
    {
       ERROR_SET(err, nomem);
    }
@@ -770,7 +770,7 @@ pollster::windows::BindLegacyAfUnixClient(
          }
       };
    }
-   catch (std::bad_alloc)
+   catch (const std::bad_alloc&)
    {
       ERROR_SET(err, nomem);
    }
@@ -785,7 +785,7 @@ pollster::windows::BindLegacyAfUnixClient(
          auto p = (const unsigned char*)buf;
          vec->insert(vec->begin(), p, p+len);
       }
-      catch (std::bad_alloc)
+      catch (const std::bad_alloc&)
       {
          ERROR_SET(err, nomem);
       }

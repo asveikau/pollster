@@ -69,7 +69,7 @@ pollster::message_queue::enqueue_work(const std::function<void(error*)> &func, b
    {
       queue.push_back(func);
    }
-   catch (std::bad_alloc)
+   catch (const std::bad_alloc&)
    {
       ERROR_SET(err, nomem);
    }

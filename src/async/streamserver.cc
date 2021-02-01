@@ -70,7 +70,7 @@ pollster::StreamServer::AddFd(const std::shared_ptr<common::SocketHandle> &fd, e
                         nfd.Detach();
                         sock = std::make_shared<StreamSocket>(waiterWeak, nfd2);
                      }
-                     catch (std::bad_alloc)
+                     catch (const std::bad_alloc&)
                      {
                         ERROR_SET(err, nomem);
                      }
@@ -85,7 +85,7 @@ pollster::StreamServer::AddFd(const std::shared_ptr<common::SocketHandle> &fd, e
                   error_clear(err);
                };
             }
-            catch (std::bad_alloc)
+            catch (const std::bad_alloc&)
             {
                ERROR_SET(err, nomem);
             }
@@ -98,7 +98,7 @@ pollster::StreamServer::AddFd(const std::shared_ptr<common::SocketHandle> &fd, e
 
       fds.push_back(sev);
    }
-   catch (std::bad_alloc)
+   catch (const std::bad_alloc&)
    {
       ERROR_SET(err, nomem);
    }
@@ -138,7 +138,7 @@ NewSocket(std::shared_ptr<common::SocketHandle> &fd, error *err)
    {
       fd = std::make_shared<common::SocketHandle>();
    }
-   catch (std::bad_alloc)
+   catch (const std::bad_alloc&)
    {
       ERROR_SET(err, nomem);
    }
@@ -327,7 +327,7 @@ winFallback:
             on_client(sock, err);
             ERROR_CHECK(err);
          }
-         catch (std::bad_alloc)
+         catch (const std::bad_alloc&)
          {
             ERROR_SET(err, nomem);
          }

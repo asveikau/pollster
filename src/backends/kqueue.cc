@@ -76,7 +76,7 @@ struct kqueue_backend :
       {
          changelist.resize(changelist.size() + n);
       }
-      catch (std::bad_alloc)
+      catch (const std::bad_alloc&)
       {
          ERROR_SET(err, nomem);
       }
@@ -116,7 +116,7 @@ struct kqueue_backend :
          {
             refCounts[(intptr_t)object] = common::Pointer<pollster::event>(object);
          }
-         catch (std::bad_alloc)
+         catch (const std::bad_alloc&)
          {
             ERROR_SET(err, nomem);
          }
@@ -153,7 +153,7 @@ struct kqueue_backend :
       {
          toDelete.push_back(common::Pointer<pollster::event>(object));
       }
-      catch (std::bad_alloc)
+      catch (const std::bad_alloc&)
       {
          ERROR_SET(err, nomem);
       }
@@ -370,7 +370,7 @@ struct kqueue_backend :
       {
          refCounts[(intptr_t)evp.Get()] = common::Pointer<pollster::event>(evp.Get());
       }
-      catch (std::bad_alloc)
+      catch (const std::bad_alloc&)
       {
          ERROR_SET(err, nomem);
       }
@@ -427,7 +427,7 @@ struct kqueue_backend :
       {
          refCounts[(intptr_t)evp.Get()] = common::Pointer<pollster::event>(evp.Get());
       }
-      catch (std::bad_alloc)
+      catch (const std::bad_alloc&)
       {
          ERROR_SET(err, nomem);
       }

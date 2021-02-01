@@ -82,7 +82,7 @@ pollster::StreamSocket::Connect(const char *host, const char *service)
          }
       );
    }
-   catch (std::bad_alloc)
+   catch (const std::bad_alloc&)
    {
       ERROR_SET(&err, nomem);
    }
@@ -205,7 +205,7 @@ winFallback:
             if (onComplete)
                writeBuf->pendingCallbacks.push_back(onComplete);
          }
-         catch (std::bad_alloc)
+         catch (const std::bad_alloc&)
          {
             ERROR_SET(err, nomem);
          }
@@ -295,7 +295,7 @@ winFallback:
       );
       ERROR_CHECK(&err);
    }
-   catch (std::bad_alloc)
+   catch (const std::bad_alloc&)
    {
       ERROR_SET(&err, nomem);
    }
@@ -458,7 +458,7 @@ pollster::StreamSocket::AttachSocket(error *err)
                   }
                exit:;
                };
-            } catch (std::bad_alloc)
+            } catch (const std::bad_alloc&)
             {
                ERROR_SET(err, nomem);
             }
@@ -469,7 +469,7 @@ pollster::StreamSocket::AttachSocket(error *err)
       );
       ERROR_CHECK(err);
    }
-   catch (std::bad_alloc)
+   catch (const std::bad_alloc&)
    {
       ERROR_SET(err, nomem);
    }
@@ -616,7 +616,7 @@ CreateFilterEvents(
       r = std::shared_ptr<pollster::FilterEvents>(rp);
       rp = nullptr;
    }
-   catch (std::bad_alloc)
+   catch (const std::bad_alloc&)
    {
       ERROR_SET(err, nomem);
    }
@@ -725,7 +725,7 @@ pollster::StreamSocket::OnWriteRequested(const void *buf, size_t len, const std:
    {
       state->writeBuffer.insert(state->writeBuffer.end(), (const char*)buf, (const char*)buf+len);
    }
-   catch (std::bad_alloc)
+   catch (const std::bad_alloc&)
    {
       ERROR_SET(&err, nomem);
    }

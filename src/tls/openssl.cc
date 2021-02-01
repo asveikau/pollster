@@ -314,7 +314,7 @@ struct OpenSslFilter : public pollster::Filter
 
          cbList.push_back(std::move(cb));
       }
-      catch (std::bad_alloc)
+      catch (const std::bad_alloc&)
       {
          ERROR_SET(err, nomem);
       }
@@ -391,7 +391,7 @@ struct OpenSslFilter : public pollster::Filter
             ERROR_CHECK(err);
          }
       }
-      catch (std::bad_alloc)
+      catch (const std::bad_alloc&)
       {
          ERROR_SET(err, nomem);
       }
@@ -608,7 +608,7 @@ struct OpenSslFilter : public pollster::Filter
       {
          pendingRead.insert(pendingRead.begin(), (const char*)buf, (const char*)buf+len);
       }
-      catch (std::bad_alloc)
+      catch (const std::bad_alloc&)
       {
          ERROR_SET(err, nomem);
       }
@@ -858,7 +858,7 @@ pollster::CreateSslFilter(
       f = new OpenSslFilter();
       res = std::shared_ptr<pollster::Filter>(f);
    }
-   catch (std::bad_alloc)
+   catch (const std::bad_alloc&)
    {
       ERROR_SET(err, nomem);
    }
@@ -1095,7 +1095,7 @@ pollster::CreateCertificate(
       {
          r->intermediaries.push_back(intermediary);
       }
-      catch (std::bad_alloc)
+      catch (const std::bad_alloc&)
       {
          ERROR_SET(err, nomem);
       }

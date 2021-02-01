@@ -78,7 +78,7 @@ pollster::windows::CreateOverlapped(
       r->on_error = std::move(on_error);
       r->on_result = std::move(on_result);
    }
-   catch (std::bad_alloc)
+   catch (const std::bad_alloc&)
    {
       ERROR_SET(err, nomem);
    }
@@ -341,7 +341,7 @@ ReadWrite(
          p->on_result = on_result;
          p->on_error = on_error;
       }
-      catch (std::bad_alloc)
+      catch (const std::bad_alloc&)
       {
          error_set_nomem(&err);
          on_error(&err);

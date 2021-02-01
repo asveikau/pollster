@@ -100,6 +100,7 @@ exit:
 bool
 ShouldAttemptAio(int fd)
 {
+   return false;
 #if defined(__FreeBSD__)
    // FreeBSD can't handle AIO for network filesystems
    // XXX - maybe it's expensive always adding an extra syscall here.

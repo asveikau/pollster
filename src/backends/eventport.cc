@@ -43,7 +43,7 @@ struct event_port_backend : public pollster::unix_backend
       {
          port = std::make_shared<common::FileHandle>();
       }
-      catch (std::bad_alloc)
+      catch (const std::bad_alloc&)
       {
          ERROR_SET(err, nomem);
       }
@@ -61,7 +61,7 @@ struct event_port_backend : public pollster::unix_backend
       {
          objects[fd] = common::Pointer<pollster::event>(object);
       }
-      catch (std::bad_alloc)
+      catch (const std::bad_alloc&)
       {
          ERROR_SET(err, nomem);
       }
