@@ -8,6 +8,8 @@
 
 #include <pollster/pollster.h>
 
+#if defined(SIGEV_NONE)
+
 void
 pollster::sigev_extif::remove_sigev(struct sigevent *sigev)
 {
@@ -62,3 +64,5 @@ pollster::sigev_extif::wrap_sigev(
    ERROR_CHECK(err);
 exit:;
 }
+
+#endif
