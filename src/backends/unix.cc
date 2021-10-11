@@ -723,7 +723,6 @@ struct sigev_wrapper : public pollster::sigev_extif
 void *
 pollster::unix_backend::get_interface(extended_interface ifspec, error *err)
 {
-
    switch (ifspec)
    {
    case pollster::Signal:
@@ -746,6 +745,7 @@ pollster::unix_backend::get_interface(extended_interface ifspec, error *err)
       }
       break;
 #endif
+   default:;
    }
 exit:;
    return waiter::get_interface(ifspec, err);

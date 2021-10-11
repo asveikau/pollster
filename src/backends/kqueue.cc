@@ -39,6 +39,7 @@ struct kqueue_backend :
 #if defined(USE_SIGEV)
    , public pollster::sigev_extif
 #endif
+   , public pollster::immediate_close_extif
 {
    common::FileHandle kq;
    std::vector<struct kevent> changelist;
@@ -179,6 +180,17 @@ struct kqueue_backend :
    }
 
    void
+   notify_immediate_close(pollster::event *object, error *err)
+   {
+      for (auto i = changelist.size(); i != 0; i--)
+      {
+         auto ev = &changelist[i-1];
+         if (ev->udata == UDATA_OBJ_CAST(object))
+            changelist.erase(changelist.begin()+(i-1));
+      }
+   }
+
+   void
    add_fd(int fd, bool write_flag, pollster::event *object, error *err)
    {
       add_fd(fd, write_flag, object, true, err);
@@ -284,6 +296,9 @@ struct kqueue_backend :
          AddRef();
          return static_cast<pollster::sigev_extif*>(this);
 #endif
+      case pollster::ImmediateClose:
+         AddRef();
+         return static_cast<pollster::immediate_close_extif*>(this);
       default:
          break;
       }

@@ -133,6 +133,7 @@ enum extended_interface
 {
    Signal,
    SigEvent,
+   ImmediateClose,
 };
 
 // Pure virtual base class for poll backend.
@@ -252,6 +253,12 @@ struct sigev_extif : public virtual common::RefCountable
       const std::function<void(error *err)> &on_error,
       error *err
    );
+};
+
+struct immediate_close_extif : public virtual common::RefCountable
+{
+   virtual void
+   notify_immediate_close(event *object, error *err) = 0;
 };
 
 // Create a backend object.
