@@ -213,30 +213,6 @@ main(int argc, char **argv)
 
    ops.clear();
 
-   {
-      if (1)
-      {
-         auto fd = std::make_shared<common::FileHandle>();
-         *fd = open("hello", O_RDONLY);
-         if (fd->Valid())
-         {
-            static char buf[256*1024];
-
-            log_printf("Starting read\n");
-            pollster::ReadFileAsync(
-               nullptr,
-               fd,
-               nullptr,
-               buf,
-               sizeof(buf),
-               [] (error *err) -> void { log_printf("error\n"); },
-               [] (size_t r, error *err) -> void { log_printf("%zd bytes in\n", r); }
-            );
-            log_printf("Read returned\n");
-         }
-      }
-   }
-
    while (!gotStop)
    {
       waiter->exec(&err);
