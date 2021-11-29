@@ -95,6 +95,10 @@ public:
    void
    Write(const void *buf, size_t len, const std::function<void(error*)> &onComplete=std::function<void(error*)>());
 
+   // "force": drop any pending writes
+   void
+   Close(bool force = false);
+
 private:
    common::Pointer<waiter> waiter;
    std::shared_ptr<common::SocketHandle> fd;

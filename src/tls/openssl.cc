@@ -302,6 +302,19 @@ struct OpenSslFilter : public pollster::Filter
    void
    AddPendingCallback(size_t len, std::vector<PendingWriteCallback> &cbList, const std::function<void(error*)> &onComplete, error *err)
    {
+      if (cbList.size() && (len == 0 || cbList[cbList.size()-1].off == 0))
+      {
+         auto &cb = cbList[cbList.size() - 1];
+         auto oldFn = std::move(cb.fn);
+         cb.off += len;
+         cb.fn = [oldFn, onComplete] (error *err) -> void
+         {
+            oldFn(err);
+            onComplete(err);
+         };
+         return;
+      }
+
       try
       {
          PendingWriteCallback cb;
@@ -405,6 +418,9 @@ struct OpenSslFilter : public pollster::Filter
 
       common::locker l;
 
+      if (!len && !onComplete)
+         return;
+
       l.acquire(writeLock);
 
       if (!initialHandshake || pendingWrites.size())
@@ -423,6 +439,17 @@ struct OpenSslFilter : public pollster::Filter
             if (!initialHandshake)
                goto exit;
          }
+      }
+      else if (!len && onComplete)
+      {
+         // empty write.
+         // pendingWrites.size() is zero, so we can set up the i/o callback now.
+         //
+         l.release();
+
+         if (Events.get())
+            Events->OnBytesToWrite(nullptr, 0, onComplete);
+         goto exit;
       }
       else
       {

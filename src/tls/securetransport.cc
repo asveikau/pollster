@@ -228,6 +228,9 @@ struct SecureTransportFilter : public pollster::Filter
       common::locker l;
       error err;
 
+      if (!len && !onComplete)
+         return;
+
       if (onComplete)
       {
          try
@@ -246,6 +249,13 @@ struct SecureTransportFilter : public pollster::Filter
 
       if (!handshakeComplete)
       {
+         if (!pendingWrites.size() && len == 0 && onComplete)
+         {
+            if (Events.get())
+               Events->OnBytesToWrite(nullptr, 0, onComplete);
+            return;
+         }
+
          try
          {
             std::vector<char> tmp;
@@ -263,7 +273,7 @@ struct SecureTransportFilter : public pollster::Filter
       if (writeCb.get())
          wrappedCb = writeCb->Wrap();
 
-      do
+      while (len)
       {
          size_t out = 0;
          OSStatus status = SSLWrite(ssl, buf, len, &out);
@@ -271,7 +281,7 @@ struct SecureTransportFilter : public pollster::Filter
             ERROR_SET(&err, osstatus, status);
          buf = (const char*)buf+out;
          len -= out;
-      } while (len);
+      }
 
       currentWriteCb = std::shared_ptr<WriteCallback>();
       if (wrappedCb)

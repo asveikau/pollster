@@ -466,6 +466,34 @@ struct SChannelFilter : public pollster::Filter
 
       l.acquire(&writeLock);
 
+      if (!len)
+      {
+         if (onComplete)
+         {
+            if (pendingWrites.size())
+            {
+               if (pendingWriteCallbacks.size())
+               {
+                  auto &oldFn = pendingWriteCallbacks[pendingWriteCallbacks.size()-1].second;
+                  auto copy = std::move(oldFn);
+                  oldFn = [copy, onComplete] (error *err) -> void
+                  {
+                     copy(err);
+                     onComplete(err);
+                  };
+               }
+               else
+                  goto noContext;
+            }
+
+            l.release();
+
+            if (Events.get())
+               Events->OnBytesToWrite(nullptr, 0, onComplete);
+         }
+         return;
+      }
+
       if (!handshakeComplete)
       {
       noContext:

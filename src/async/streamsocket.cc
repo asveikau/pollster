@@ -302,6 +302,27 @@ winFallback:
 #endif
 }
 
+void
+pollster::StreamSocket::Close(bool force)
+{
+   if (force)
+   {
+      if (sev.Get())
+      {
+         error err;
+
+         sev->remove(&err);
+         sev = nullptr;
+      }
+
+      fd = nullptr;
+   }
+   else
+   {
+      Write(nullptr, 0, [this] (error *err) -> void { Close(true); });
+   }
+}
+
 namespace {
 
 void
@@ -481,12 +502,8 @@ pollster::StreamSocket::Write(const void *buf, size_t len, const std::function<v
 {
    error err;
 
-   if (!len)
-   {
-      if (onComplete)
-         onComplete(&err);
+   if (!len && !onComplete)
       goto exit;
-   }
 
    if (CheckFilter(&err))
    {
@@ -696,12 +713,8 @@ pollster::StreamSocket::OnWriteRequested(const void *buf, size_t len, const std:
    bool was_empty = false;
    WriteCompletionNode *qn = nullptr;
 
-   if (!len)
-   {
-      if (onComplete)
-         onComplete(&err);
+   if (!len && !onComplete)
       goto exit;
-   }
 
    if (writeFn)
    {
@@ -712,6 +725,11 @@ pollster::StreamSocket::OnWriteRequested(const void *buf, size_t len, const std:
 
    if (onComplete)
    {
+      if (!len && !state->writeBuffer.size())
+      {
+         onComplete(&err);
+         goto exit;
+      }
       qn = new (std::nothrow) WriteCompletionNode();
       if (!qn)
          ERROR_SET(&err, nomem);
@@ -730,7 +748,7 @@ pollster::StreamSocket::OnWriteRequested(const void *buf, size_t len, const std:
       ERROR_SET(&err, nomem);
    }
 
-   if (was_empty && sev.Get())
+   if (was_empty && len && sev.Get())
    {
       sev->set_needs_write(true, &err);
       ERROR_CHECK(&err);
