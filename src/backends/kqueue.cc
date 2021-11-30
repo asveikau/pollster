@@ -210,6 +210,7 @@ struct kqueue_backend :
       struct timespec timeoutStorage;
       struct timespec *timeout = nullptr;
       auto timeoutInt = timer.next_timer();
+      bool fastDelete = false;
 
       if (!refCounts.size() && timeoutInt < 0)
          ERROR_SET(err, unknown, "exec() called with empty fd set");
@@ -217,7 +218,14 @@ struct kqueue_backend :
       base_exec(err);
       ERROR_CHECK(err);
 
-      if (timeoutInt >= 0)
+      if (toDelete.size())
+      {
+         timeout = &timeoutStorage;
+         timeout->tv_sec = 0;
+         timeout->tv_nsec = 0;
+         fastDelete = true;
+      }
+      else if (timeoutInt >= 0)
       {
          timeout = &timeoutStorage;
          timeout->tv_sec = timeoutInt / 1000;
@@ -242,7 +250,7 @@ struct kqueue_backend :
       cursor = events - 1;
       last = events + nevents;
 
-      if (timeoutInt >= 0)
+      if (timeoutInt >= 0 && !fastDelete)
       {
          timer.end_poll(err);
          ERROR_CHECK(err);
