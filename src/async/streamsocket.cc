@@ -55,23 +55,25 @@ pollster::StreamSocket::Connect(const char *host, const char *service)
 
    try
    {
+      auto rcThis = shared_from_this();
+
       ConnectAsync(
          waiter.Get(),
          host,
          service,
-         [this] (pollster::ConnectAsyncStatus state, const char *arg, error *err) -> void
+         [this, rcThis] (pollster::ConnectAsyncStatus state, const char *arg, error *err) -> void
          {
             if (on_connect_progress)
                on_connect_progress(state, arg, err);
          },
-         [this] (const std::shared_ptr<common::SocketHandle> &fd, error *err) -> void
+         [this, rcThis] (const std::shared_ptr<common::SocketHandle> &fd, error *err) -> void
          {
             this->fd = fd;
             AttachSocket(err);
             ERROR_CHECK(err);
          exit:;
          },
-         [this] (error *err)
+         [this, rcThis] (error *err)
          {
             OnAsyncError(err);
             if (fd->Valid())
