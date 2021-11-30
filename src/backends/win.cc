@@ -394,7 +394,7 @@ pollster::wait_loop::unlink(void)
 void
 pollster::wait_loop::link(wait_loop **prev)
 {
-   prev = prev;
+   this->prev = prev;
    next = *prev;
    *prev = this;
    if (next)
