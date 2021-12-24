@@ -307,12 +307,12 @@ winFallback:
 void
 pollster::StreamSocket::Close(bool force)
 {
+   error err;
+
    if (force)
    {
       if (sev.Get())
       {
-         error err;
-
          sev->remove(&err);
          sev = nullptr;
       }
@@ -321,6 +321,11 @@ pollster::StreamSocket::Close(bool force)
    }
    else
    {
+      if (CheckFilter(&err))
+      {
+         filter->CloseNotify(&err);
+      }
+
       Write(nullptr, 0, [this] (error *err) -> void { Close(true); });
    }
 }

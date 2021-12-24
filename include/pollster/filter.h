@@ -50,6 +50,9 @@ struct Filter
    Write(const void *buf, size_t len, const std::function<void(error*)> &onComplete) = 0;
 
    virtual void
+   CloseNotify(error *err) {}
+
+   virtual void
    OnBytesReceived(const void *buf, size_t len, error *err) = 0;
    
    virtual void

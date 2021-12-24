@@ -198,6 +198,7 @@ struct OpenSslFilter : public pollster::Filter
    std::vector<char> pendingRead;
    bool initialHandshake;
    bool hostnameSet;
+   bool pendingShutdown;
    pollster::SslArgs::CallbackStruct cb;
 
    OpenSslFilter()
@@ -206,7 +207,8 @@ struct OpenSslFilter : public pollster::Filter
         contextBio(nullptr),
         networkBio(nullptr),
         initialHandshake(false),
-        hostnameSet(false)
+        hostnameSet(false),
+        pendingShutdown(false)
    {
    }
 
@@ -506,6 +508,8 @@ struct OpenSslFilter : public pollster::Filter
    void
    TryPendingWritesUnlocked(error *err)
    {
+      bool hadWrite = pendingWrites.size();
+
       PerformIoWithCallbacks(
          pendingWrites.size(),
          plaintextWriteCallbacks,
@@ -545,8 +549,62 @@ struct OpenSslFilter : public pollster::Filter
       );
       ERROR_CHECK(err);
 
+      if (pendingShutdown && (!hadWrite || (hadWrite && !pendingWrites.size())))
+      {
+         TryPendingShutdownUnlocked(err);
+      }
+
       TryCiphertextWriteUnlocked(err);
       ERROR_CHECK(err);
+   exit:;
+   }
+
+   void CloseNotify(error *err)
+   {
+      common::locker l;
+
+      l.acquire(writeLock);
+
+      pendingShutdown = true;
+
+      if (!pendingWrites.size())
+      {
+         TryPendingShutdownUnlocked(err);
+         ERROR_CHECK(err);
+         TryCiphertextWriteUnlocked(err);
+         ERROR_CHECK(err);
+      }
+   exit:;
+   }
+
+   void
+   TryPendingShutdownUnlocked(error *err)
+   {
+      int r = 0;
+      bool retried = false;
+   retry:
+      r = SSL_shutdown(ssl);
+      if (r == 0)
+      {
+         int code = SSL_get_error(ssl, r);
+         switch (code)
+         {
+         case SSL_ERROR_SYSCALL:
+            if (retried)
+               break;
+            retried = true;
+            // fall through
+         case SSL_ERROR_WANT_WRITE:
+            if (TryCiphertextWriteUnlocked(err))
+               goto retry;
+            ERROR_CHECK(err);
+            // fall through
+         case SSL_ERROR_WANT_READ:
+            break;
+         default:
+            ERROR_SET(err, openssl, code);
+         }
+      }
    exit:;
    }
 
