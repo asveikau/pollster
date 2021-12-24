@@ -529,6 +529,73 @@ struct SChannelFilter : public pollster::Filter
    }
 
    void
+   CloseNotify(error *err)
+   {
+      SecBuffer outputBufs[1] = {0}, *out = outputBufs;
+      SecBufferDesc output = {0};
+      DWORD type = SCHANNEL_SHUTDOWN;
+      DWORD flagsOut = 0;
+      SECURITY_STATUS status = 0;
+      TimeStamp ts = {0};
+      PVOID toFree = nullptr;
+
+      if (!sizes.cbMaximumMessage || !Valid(context))
+      {
+         // No writes or handshake yet?  Skip.
+         //
+         goto exit;
+      }
+
+      out->pvBuffer = &type;
+      out->cbBuffer = sizeof(type);
+      out->BufferType = SECBUFFER_TOKEN;
+      ++out;
+
+      output.ulVersion = SECBUFFER_VERSION;
+      output.cBuffers = out - outputBufs;
+      output.pBuffers = outputBufs;
+
+      status = SecInterface->ApplyControlToken(&context, &output);
+      if (status)
+         ERROR_SET(err, winsec, status);
+
+      memset(outputBufs, 0, (out-outputBufs)*sizeof(*out));
+      out = outputBufs;
+
+      out->BufferType = SECBUFFER_TOKEN;
+      ++out;
+
+      output.ulVersion = SECBUFFER_VERSION;
+      output.cBuffers = out - outputBufs;
+      output.pBuffers = outputBufs;
+
+      status = SecInterface->InitializeSecurityContext(
+            &creds,
+            &context,
+            nullptr,
+            ISC_REQ_SEQUENCE_DETECT | ISC_REQ_REPLAY_DETECT | ISC_REQ_CONFIDENTIALITY |
+               ISC_RET_EXTENDED_ERROR | ISC_REQ_ALLOCATE_MEMORY | ISC_REQ_STREAM,
+            0,
+            SECURITY_NATIVE_DREP,
+            nullptr,
+            0,
+            &context,
+            &output,
+            &flagsOut,
+            &ts
+         );
+      toFree = out[-1].pvBuffer;
+      if (status)
+         ERROR_SET(err, winsec, status);
+
+      if (Events.get())
+         Events->OnBytesToWrite(out[-1].pvBuffer, out[-1].cbBuffer, std::function<void(error*)>());
+   exit:
+      if (toFree)
+         SecInterface->FreeContextBuffer(toFree);
+   }
+
+   void
    OnBytesReceived(const void *buf, size_t len, error *err)
    {
       bool heap = false;
