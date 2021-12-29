@@ -85,6 +85,7 @@ main(int argc, char **argv)
    bool sawClient = false;
    std::shared_ptr<ClientForwarder> forwarder;
    std::function<void(const std::shared_ptr<StreamSocket> &, error *)> onClient;
+   const char *hostOverride = nullptr;
 
    log_register_callback(
       [] (void *np, const char *p) -> void { fputs(p, stderr); },
@@ -122,14 +123,14 @@ main(int argc, char **argv)
          if (i + 2 >= argc)
          {
          usage_server:
-            ERROR_SET(&err, unknown, "Usage: -server <unix path>|<tcp port>|<ssl port>");
+            ERROR_SET(&err, unknown, "Usage: -server <unix path>|<tcp port>|<tls port>");
          }
 
          type = argv[i+1];
          arg = argv[i+2];
          i += 2;
 
-         if (!strcmp(type, "ssl"))
+         if (!strcmp(type, "ssl") || !strcmp(type, "tls"))
          {
             sawSsl = true;
 
@@ -187,7 +188,7 @@ main(int argc, char **argv)
          if (i + 2 >= argc)
          {
          usage_client:
-            ERROR_SET(&err, unknown, "Usage: -client <unix path>|<tcp host:port>|<ssl host:port>");
+            ERROR_SET(&err, unknown, "Usage: -client <unix path>|<tcp host:port>|<tls host:port>");
          }
 
          const char *host = nullptr;
@@ -213,7 +214,6 @@ main(int argc, char **argv)
                return false;
             *port_s++ = 0;
 
-
             if (!check_atoi(port_s, &port) || !VALID_PORT(port))
                return false;
 
@@ -222,17 +222,17 @@ main(int argc, char **argv)
             return true;
          };
 
-         if (!strcmp(type, "ssl"))
+         if (!strcmp(type, "ssl") || !strcmp(type, "tls"))
          {
             if (!parseHost())
                goto usage_client;
 
-            forwarder->PrepareRemoteClient = [host, port] (const std::shared_ptr<StreamSocket> &fd, error *err) -> void
+            forwarder->PrepareRemoteClient = [&hostOverride, host, port] (const std::shared_ptr<StreamSocket> &fd, error *err) -> void
             {
                SslArgs args;
                char service[64];
 
-               args.HostName = host;
+               args.HostName = hostOverride ? hostOverride : host;
                CreateSslFilter(args, fd->filter, err);
                ERROR_CHECK(err);
 
@@ -285,6 +285,12 @@ main(int argc, char **argv)
          CreateCertificate(pemStream.Get(), pem.GetAddressOf(), &err);
          ERROR_CHECK(&err);
       }
+      else if (!strcmp(arg, "-host"))
+      {
+         if (i + 1 >= argc)
+            ERROR_SET(&err, unknown, "Usage: -host <host name override>");
+         hostOverride = argv[++i];
+      }
       else
       {
          ERROR_SET(&err, unknown, "Valid options: -client, -server, -pemfile");
@@ -299,7 +305,7 @@ main(int argc, char **argv)
       ERROR_SET(&err, unknown, "Need -client option");
 
    if (sawSsl && !pem.Get())
-      ERROR_SET(&err, unknown, "ssl server set, but no -pemfile specified");
+      ERROR_SET(&err, unknown, "tls server set, but no -pemfile specified");
 
    for (;;)
    {
