@@ -451,6 +451,7 @@ pollster::StreamSocket::AttachSocket(error *err)
                   }
                   ERROR_CHECK(err);
 
+                  if (!fd->Valid()) goto exit;
                   CheckIoError(r, err);
                   ERROR_CHECK(err);
 
@@ -460,6 +461,7 @@ pollster::StreamSocket::AttachSocket(error *err)
                      ERROR_CHECK(err);
                   }
 
+                  if (!fd->Valid()) goto exit;
                   CheckIoError(r, err);
                   ERROR_CHECK(err);
 
