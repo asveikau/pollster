@@ -326,7 +326,8 @@ pollster::StreamSocket::Close(bool force)
          filter->CloseNotify(&err);
       }
 
-      Write(nullptr, 0, [this] (error *err) -> void { Close(true); });
+      auto rc = shared_from_this();
+      Write(nullptr, 0, [this, rc] (error *err) -> void { Close(true); });
    }
 }
 
