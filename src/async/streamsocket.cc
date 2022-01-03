@@ -409,6 +409,15 @@ pollster::StreamSocket::AttachSocket(error *err)
                   WriteCompletionNode *first = nullptr;
                   WriteCompletionNode *n = nullptr;
                   bool filterEof = false;
+                  common::Pointer<pollster::socket_event> rc;
+
+                  auto onCallbackPreamble = [&] (void) -> void
+                  {
+                     // If the callback decides to destroy the socket, we want to
+                     // retain for the rest of our call.
+                     //
+                     rc = sev;
+                  };
 
                   l.acquire(state->writeLock);
 
@@ -445,23 +454,29 @@ pollster::StreamSocket::AttachSocket(error *err)
                   {
                      auto next = first->next;
                      if (!ERROR_FAILED(err))
+                     {
+                        onCallbackPreamble();
                         first->callback(err);
+                     }
                      delete first;
                      first = next;
                   }
                   ERROR_CHECK(err);
 
-                  if (!fd->Valid()) goto exit;
+                  if (!fd.get() || !fd->Valid()) goto exit;
                   CheckIoError(r, err);
                   ERROR_CHECK(err);
 
                   while ((r = recv(fd->Get(), buf, sizeof(buf), 0)) > 0)
                   {
+                     onCallbackPreamble();
                      on_recv(buf, r, err);
                      ERROR_CHECK(err);
+
+                     if (!fd.get() || !fd->Valid())
+                        break;
                   }
 
-                  if (!fd->Valid()) goto exit;
                   CheckIoError(r, err);
                   ERROR_CHECK(err);
 
@@ -475,15 +490,10 @@ pollster::StreamSocket::AttachSocket(error *err)
                   if (r == 0 || filterEof)
                   {
                      error innerError;
-                     common::Pointer<pollster::socket_event> rc;
 
-#if 0 // XXX made sense when this was a std::function
-                     if (on_closed)
-#endif
-                     {
-                        rc = sev;
-                        on_closed(err);
-                     }
+                     onCallbackPreamble();
+                     on_closed(err);
+
                      sev->remove(&innerError);
                      ERROR_CHECK(err);
                   }
