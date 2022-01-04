@@ -206,7 +206,7 @@ main(int argc, char **argv)
                port_s = strchr(++arg, ']');
                if (!port_s)
                   return false;
-               *port_s++ = '0';
+               *port_s++ = 0;
             }
 
             port_s = strchr(port_s, ':');
