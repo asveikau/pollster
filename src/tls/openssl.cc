@@ -158,12 +158,17 @@ init_library(error *err)
 #if (OPENSSL_VERSION_NUMBER < 0x10101000L) || defined(LIBRESSL_VERSION_NUMBER)
 
 #define NEED_EX_IO
+#if !defined(LIBRESSL_VERSION_NUMBER) || (LIBRESSL_VERSION_NUMBER < 0x3050100fL)
+#define NEED_SSL_EX_IO
+#endif
 
+#ifdef NEED_SSL_EX_IO
 int
 SSL_write_ex(SSL *ssl, const void *buf, size_t num, size_t *written);
 
 int
 SSL_read_ex(SSL *ssl, void *buf, size_t num, size_t *read);
+#endif
 
 int
 BIO_write_ex(BIO *bio, const void *buf, size_t num, size_t *written);
@@ -994,6 +999,8 @@ exit:
    return r;
 }
 
+#ifdef NEED_SSL_EX_IO
+
 int
 SSL_write_ex(SSL *ssl, const void *buf, size_t num, size_t *written)
 {
@@ -1017,6 +1024,8 @@ SSL_read_ex(SSL *ssl, void *buf, size_t num, size_t *read)
       }
    );
 }
+
+#endif
 
 int
 BIO_write_ex(BIO *bio, const void *buf, size_t num, size_t *written)
