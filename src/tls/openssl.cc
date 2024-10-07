@@ -176,6 +176,7 @@ BIO_write_ex(BIO *bio, const void *buf, size_t num, size_t *written);
 int
 BIO_read_ex(BIO *bio, void *buf, size_t num, size_t *read);
 
+#if !defined(LIBRESSL_VERSION_NUMBER) || (LIBRESSL_VERSION_NUMBER < 0x4000000fL)
 void
 SSL_CTX_set1_cert_store(SSL_CTX *ctx, X509_STORE *store)
 {
@@ -183,6 +184,7 @@ SSL_CTX_set1_cert_store(SSL_CTX *ctx, X509_STORE *store)
    if (store)
       X509_STORE_up_ref(store);
 }
+#endif
 
 #endif
 
