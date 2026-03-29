@@ -18,6 +18,7 @@
 #include <security.h>
 #include <schannel.h>
 
+#pragma comment(lib, "advapi32.lib")
 #pragma comment(lib, "crypt32.lib")
 #pragma comment(lib, "secur32.lib")
 
