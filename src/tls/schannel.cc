@@ -11,16 +11,63 @@
 #include <common/c++/lock.h>
 #include <common/c++/new.h>
 #include <common/misc.h>
+#include <common/uname.h>
 #include <string.h>
 #include <vector>
 
 #define SECURITY_WIN32
+#define SCHANNEL_USE_BLACKLISTS
 #include <security.h>
 #include <schannel.h>
+#include <winternl.h>
 
 #pragma comment(lib, "advapi32.lib")
 #pragma comment(lib, "crypt32.lib")
 #pragma comment(lib, "secur32.lib")
+
+#ifndef SCH_CREDENTIALS_VERSION    // hack for old SDK
+#define SCH_CREDENTIALS_VERSION 5
+typedef enum _eTlsAlgorithmUsage
+{
+    TlsParametersCngAlgUsageKeyExchange,
+    TlsParametersCngAlgUsageSignature,
+    TlsParametersCngAlgUsageCipher,
+    TlsParametersCngAlgUsageDigest,
+    TlsParametersCngAlgUsageCertSig,
+} eTlsAlgorithmUsage;
+typedef struct _CRYPTO_SETTINGS
+{
+    eTlsAlgorithmUsage eAlgorithmUsage;
+    UNICODE_STRING     strCngAlgId;
+    DWORD              cChainingModes;
+    PUNICODE_STRING    rgstrChainingModes;
+    DWORD              dwMinBitLength;
+    DWORD              dwMaxBitLength;
+} CRYPTO_SETTINGS, *PCRYPTO_SETTINGS;
+typedef struct _TLS_PARAMETERS
+{
+    DWORD            cAlpnIds;
+    PUNICODE_STRING  rgstrAlpnIds;
+    DWORD            grbitDisabledProtocols;
+    DWORD            cDisabledCrypto;
+    PCRYPTO_SETTINGS pDisabledCrypto;
+    DWORD            dwFlags;
+} TLS_PARAMETERS, *PTLS_PARAMETERS;
+typedef struct _SCH_CREDENTIALS
+{
+    DWORD             dwVersion;
+    DWORD             dwCredFormat;
+    DWORD             cCreds;
+    PCCERT_CONTEXT   *paCred;
+    HCERTSTORE        hRootStore;
+    DWORD             cMappers;
+    struct _HMAPPER **aphMappers;
+    DWORD             dwSessionLifespan;
+    DWORD             dwFlags;
+    DWORD             cTlsParameters;
+    PTLS_PARAMETERS   pTlsParameters;
+} SCH_CREDENTIALS, *PSCH_CREDENTIALS;
+#endif
 
 namespace {
 
@@ -85,33 +132,69 @@ struct SChannelFilter : public pollster::Filter
       }
    }
 
+   static int
+   GetWindowsBuild()
+   {
+      struct utsname name;
+      int major, minor, build;
+      uname(&name);
+      sscanf(name.release, "%d.%d.%d", &major, &minor, &build);
+      return build;
+   }
+
    void
    GetCreds(bool server, error *err)
    {
       SECURITY_STATUS status = 0;
       TimeStamp ts = {0};
-      SCHANNEL_CRED cred = {0};
+      union
+      {
+         SCHANNEL_CRED legacy;
+         SCH_CREDENTIALS current;
+      } cred = {0};
       PCCERT_CONTEXT certContext = nullptr;
+
+      static int winBuild = GetWindowsBuild();
+      bool legacy = winBuild < 17763;
+
+      PCCERT_CONTEXT **ppaCred = nullptr;
+      DWORD *pcCreds = nullptr;
+      DWORD *pdwFlags = nullptr;
+      PVOID pCred = nullptr;
 
       if (Valid(creds))
          goto exit;
 
-      cred.dwVersion = SCHANNEL_CRED_VERSION;
+      if (legacy)
+      {
+         pCred = &cred.legacy;
+         cred.legacy.dwVersion = SCHANNEL_CRED_VERSION;
+         ppaCred = &cred.legacy.paCred;
+         pcCreds = &cred.legacy.cCreds;
+         pdwFlags = &cred.legacy.dwFlags;
+      }
+      else
+      {
+         pCred = &cred.current;
+         cred.current.dwVersion = SCH_CREDENTIALS_VERSION;
+         ppaCred = &cred.current.paCred;
+         pcCreds = &cred.current.cCreds;
+         pdwFlags = &cred.current.dwFlags;
+      }
 
       if (Certificate.Get())
       {
          certContext = (PCCERT_CONTEXT)Certificate->GetNativeObject();
-
-         cred.cCreds = 1;
-         cred.paCred = &certContext;
+         *pcCreds = 1;
+         *ppaCred = &certContext;
       }
 
       if (!server)
       {
          if (!remoteName)
-            cred.dwFlags |= SCH_CRED_MANUAL_CRED_VALIDATION;
+            *pdwFlags |= SCH_CRED_MANUAL_CRED_VALIDATION;
          else
-            cred.dwFlags |= SCH_CRED_AUTO_CRED_VALIDATION;
+            *pdwFlags |= SCH_CRED_AUTO_CRED_VALIDATION;
       }
 
       status = SecInterface->AcquireCredentialsHandle(
@@ -119,7 +202,7 @@ struct SChannelFilter : public pollster::Filter
          UNISP_NAME,
          server ? SECPKG_CRED_INBOUND : SECPKG_CRED_OUTBOUND,
          nullptr,
-         &cred,
+         pCred,
          nullptr,
          nullptr,
          &creds,
