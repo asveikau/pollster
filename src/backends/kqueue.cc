@@ -27,7 +27,7 @@
 #define UDATA_OBJ_CAST(X) (X)
 #endif
 
-#if defined(SIGEV_KEVENT)
+#if defined(SIGEV_KEVENT) && !defined(__APPLE__)
 #define USE_SIGEV
 #endif
 
